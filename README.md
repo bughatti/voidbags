@@ -100,7 +100,7 @@ Items are routed into intuitive groups so you never lose anything:
 
 ## Compatibility
 
-- **WoW Interface 12.0.5** (Midnight Season 1)
+- **WoW Interface 12.0.7** (Midnight Season 1)
 - Plays nice with most UI replacements (ElvUI, VoidUI, default)
 - No taint in normal usage — falls back to Blizzard bags via `/vb default` if anything weird happens
 - Works with the Reagent Bag (slot 5) and Warband Bank (12.0)

@@ -1,6 +1,6 @@
 ## Interface: 120007
 ## Title: |cff00c7ffVoidBags|r
-## Notes: Smart bag organizer with auto-categorization, item markers, and cross-character tracking
+## Notes: Smart bag organizer with auto-categorization, item markers, and cross-character tracking Discord: https://discord.gg/7ZHmx7zMDh
 ## Author: Vede
 ## Version: 1.2.0
 ## SavedVariables: VoidBagsDB
