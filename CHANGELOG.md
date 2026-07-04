@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1] — 2026-07-04
+
+### Fixed
+- **Bag slots now toggle open *and* closed.** Clicking the backpack or a held bag
+  only ever opened VoidBags (re-clicking wouldn't close it), and the reagent bag
+  didn't open at all. Bag-slot clicks call `ToggleBag(id)`, which wasn't hooked —
+  VoidBags now hooks it and toggles off the frame's actual visible state, so every
+  slot (including the reagent bag) opens and closes.
+- **Settings now stick.** Unchecking a toggle (e.g. "don't use the guild bank for
+  repairs") no longer flips back on after a reload — a saved value of `false` was
+  being overwritten by the option's default.
+
 ## [1.2.0] — 2026-06-20
 
 ### New: Guild Bank

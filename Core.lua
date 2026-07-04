@@ -205,7 +205,13 @@ function VB:InitDB()
 end
 
 function VB:GetConfig(key)
-    return self.config and self.config[key] or self.defaults[key]
+    -- Explicit nil check, NOT `or`: a saved value of `false` is valid and must win.
+    -- `self.config[key] or self.defaults[key]` turns every unchecked (false) toggle
+    -- back on, because `false or <true default>` evaluates to true.
+    if self.config and self.config[key] ~= nil then
+        return self.config[key]
+    end
+    return self.defaults[key]
 end
 
 ----------------------------------------------------------------------
