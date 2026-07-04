@@ -1501,7 +1501,11 @@ function VB:ToggleSettings(parent)
 end
 
 function VB:ToggleBags()
-    if isOpen then
+    -- Toggle off the frame's ACTUAL visible state, not the isOpen flag. The flag can
+    -- desync (frame hidden by something other than CloseBags), which would leave the
+    -- bag button stuck only-opening. Visible = shown AND not alpha-hidden (combat).
+    local visible = bagFrame and bagFrame:IsShown() and (bagFrame:GetAlpha() or 0) > 0.5
+    if visible then
         VB:CloseBags()
     else
         VB:OpenBags()
@@ -1697,7 +1701,16 @@ ef:SetScript("OnEvent", function(_, event, arg1)
         end
         local function scheduleOp(op, src)
             dbg("hook %s -> queue %s (was=%s)", tostring(src), op, tostring(pendingOp))
-            pendingOp = op
+            -- Precedence, NOT recency. Pressing B / clicking the bag button fires a
+            -- "toggle", and Blizzard's ToggleBackpack/ToggleAllBags then internally
+            -- ALSO fires OpenAllBags/OpenBackpack in the SAME keystroke. With plain
+            -- last-wins, that trailing "open" clobbered the "toggle" -> the bag button
+            -- could only ever OPEN, never close (the reported bug). So once a "toggle"
+            -- is queued for this cascade it wins; a lone "open"/"close" with no
+            -- preceding toggle (e.g. bags auto-opening at a merchant) still applies.
+            if pendingOp ~= "toggle" then
+                pendingOp = op
+            end
             if not pendingTimer and C_Timer and C_Timer.NewTimer then
                 pendingTimer = C_Timer.NewTimer(0.01, applyPending)
             end
@@ -1709,6 +1722,12 @@ ef:SetScript("OnEvent", function(_, event, arg1)
         if ToggleBackpack then hooksecurefunc("ToggleBackpack", function() scheduleOp("toggle", "ToggleBackpack") end) end
         if OpenBackpack   then hooksecurefunc("OpenBackpack",   function() scheduleOp("open",   "OpenBackpack")   end) end
         if CloseBackpack  then hooksecurefunc("CloseBackpack",  function() scheduleOp("close",  "CloseBackpack")  end) end
+        -- Normal-clicking ANY bag slot (backpack, held bags, AND the reagent bag)
+        -- calls ToggleBag(id) — NOT ToggleAllBags (that's the Shift-click path).
+        -- Held bags then internally hit OpenBackpack (our "open" hook) so they only
+        -- ever opened; the reagent bag hits no hooked function so it never opened.
+        -- Routing ToggleBag through "toggle" makes every bag slot toggle VoidBags.
+        if ToggleBag then hooksecurefunc("ToggleBag", function() scheduleOp("toggle", "ToggleBag") end) end
 
         -- Hide Blizzard bags — combat-safe.
         -- In combat we can only touch unprotected attrs (alpha, mouse).
