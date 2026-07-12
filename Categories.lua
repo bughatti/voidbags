@@ -262,11 +262,17 @@ function VB:CategorizeItem(bag, slot)
     --      8 = Account-bound (Warbound/Heirloom). Most reliable.
     --   2. C_Item APIs as fallback (names vary across patches).
     do
+        -- IMPORTANT: bindType (GetItemInfo return 14) is a STATIC TEMPLATE property. A
+        -- "Warbound until equipped" item keeps bindType == 7 forever -- even after it's
+        -- used/equipped and soulbinds IN PLACE. Trusting bindType alone left those
+        -- soulbound items stuck in the Warband category. Blizzard's own warband tint asks
+        -- the INSTANCE (C_Item.IsBoundToAccountUntilEquip, ContainerFrame.lua), which flips
+        -- to false once bound -- so we do the same. Only bindType 8 (always account-bound,
+        -- e.g. heirlooms) is trusted as a template, since those never soulbind.
         local isWarband = false
-        if bindType == 7 or bindType == 8 then
+        if bindType == 8 then
             isWarband = true
-        end
-        if not isWarband then
+        else
             local itemLoc = ItemLocation:CreateFromBagAndSlot(bag, slot)
             if itemLoc and C_Item.DoesItemExist(itemLoc) then
                 if C_Item.IsBoundToAccountUntilEquip then
@@ -275,10 +281,6 @@ function VB:CategorizeItem(bag, slot)
                 end
                 if not isWarband and C_Item.IsItemBoundToAccountUntilEquip then
                     local ok, r = pcall(C_Item.IsItemBoundToAccountUntilEquip, itemLoc)
-                    if ok and r then isWarband = true end
-                end
-                if not isWarband and C_Item.IsBoundToAccount then
-                    local ok, r = pcall(C_Item.IsBoundToAccount, itemLoc)
                     if ok and r then isWarband = true end
                 end
             end
