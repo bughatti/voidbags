@@ -110,46 +110,46 @@ local function CreateItemButton(parent, bag, slot)
     -- Item level
     btn.ilvlText = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.ilvlText, 10, "OUTLINE")
-    -- Bottom-left corner: keeps the ilvl clear of the top-center letter
-    -- markers (L/C/T/$/A/P). Previously TOPLEFT, where a 3-digit ilvl bled
-    -- rightward under the marker and the "L" sat on top of it.
-    btn.ilvlText:SetPoint("BOTTOMLEFT", 2, 2)
+    -- Top-left (where it's always lived + most visible). The letter markers
+    -- (L/C/T/$/A/P) moved to the top-RIGHT so a 3-digit ilvl no longer
+    -- collides with them (the "L" used to sit on top of the ilvl).
+    btn.ilvlText:SetPoint("TOPLEFT", 2, -2)
     btn.ilvlText:SetTextColor(P.text[1], P.text[2], P.text[3])
 
     -- Markers (L/C/T/$/A/P)
     btn.learnMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.learnMark, 12, "OUTLINE")
-    btn.learnMark:SetPoint("TOP", 0, -1)
+    btn.learnMark:SetPoint("TOPRIGHT", -2, -1)
     btn.learnMark:SetText("|cff00ff00L|r")
     btn.learnMark:Hide()
 
     btn.craftMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.craftMark, 12, "OUTLINE")
-    btn.craftMark:SetPoint("TOP", 0, -1)
+    btn.craftMark:SetPoint("TOPRIGHT", -2, -1)
     btn.craftMark:SetText("|cff00ff00C|r")
     btn.craftMark:Hide()
 
     btn.trashMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.trashMark, 12, "OUTLINE")
-    btn.trashMark:SetPoint("TOP", 0, -1)
+    btn.trashMark:SetPoint("TOPRIGHT", -2, -1)
     btn.trashMark:SetText("|cff00ff00T|r")
     btn.trashMark:Hide()
 
     btn.sellAHMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.sellAHMark, 12, "OUTLINE")
-    btn.sellAHMark:SetPoint("TOP", 0, -1)
+    btn.sellAHMark:SetPoint("TOPRIGHT", -2, -1)
     btn.sellAHMark:SetText("|cff00ff00$|r")
     btn.sellAHMark:Hide()
 
     btn.altMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.altMark, 12, "OUTLINE")
-    btn.altMark:SetPoint("TOP", 0, -1)
+    btn.altMark:SetPoint("TOPRIGHT", -2, -1)
     btn.altMark:SetText("|cff00ff00A|r")
     btn.altMark:Hide()
 
     btn.protectedMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.protectedMark, 12, "OUTLINE")
-    btn.protectedMark:SetPoint("TOP", 0, -1)
+    btn.protectedMark:SetPoint("TOPRIGHT", -2, -1)
     btn.protectedMark:SetText("|cff00ff00P|r")
     btn.protectedMark:Hide()
 

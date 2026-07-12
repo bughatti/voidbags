@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.4] — 2026-07-12
+
+### Fixed
+- **Item level is visible again.** 1.2.3 moved the ilvl to the bottom-left
+  corner, where it didn't render as expected (and in the bank it collided with
+  the AH-value marker). The ilvl is back in its original **top-left** spot;
+  instead, the letter markers (L/C/T/$/A/P) now sit in the **top-right** corner,
+  so a 3-digit ilvl and the markers no longer overlap.
+
 ## [1.2.3] — 2026-07-12
 
 ### Fixed
