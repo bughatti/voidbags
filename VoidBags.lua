@@ -110,7 +110,10 @@ local function CreateItemButton(parent, bag, slot)
     -- Item level
     btn.ilvlText = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.ilvlText, 10, "OUTLINE")
-    btn.ilvlText:SetPoint("TOPLEFT", 2, -2)
+    -- Bottom-left corner: keeps the ilvl clear of the top-center letter
+    -- markers (L/C/T/$/A/P). Previously TOPLEFT, where a 3-digit ilvl bled
+    -- rightward under the marker and the "L" sat on top of it.
+    btn.ilvlText:SetPoint("BOTTOMLEFT", 2, 2)
     btn.ilvlText:SetTextColor(P.text[1], P.text[2], P.text[3])
 
     -- Markers (L/C/T/$/A/P)
@@ -884,20 +887,28 @@ local function CreateBagFrame()
 
     -- Settings gear button — opens popup with auto-sell/auto-repair toggles
     local settingsBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
-    settingsBtn:SetSize(20, 18)
+    settingsBtn:SetSize(22, 20)
     settingsBtn:SetPoint("RIGHT", sortBtn, "LEFT", -4, 0)
     VB:CreateBackdrop(settingsBtn, "section")
-    local settingsTxt = settingsBtn:CreateFontString(nil, "OVERLAY")
-    VB:SetFont(settingsTxt, 12, "OUTLINE")
-    settingsTxt:SetPoint("CENTER")
-    settingsTxt:SetText("|cffd4a24c*|r")
+    -- Recognizable gear/cog icon (the default WoW font has no cog glyph, so
+    -- use Blizzard's options-button texture instead of the old "*" asterisk,
+    -- which read as decoration and was easy to miss).
+    local settingsTex = settingsBtn:CreateTexture(nil, "OVERLAY")
+    settingsTex:SetPoint("CENTER")
+    settingsTex:SetSize(15, 15)
+    settingsTex:SetTexture("Interface\\Buttons\\UI-OptionsButton")
+    settingsTex:SetVertexColor(0.95, 0.85, 0.5)
     settingsBtn:SetScript("OnEnter", function(self)
+        settingsTex:SetVertexColor(1, 1, 1)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         GameTooltip:SetText("VoidBags Settings", 0, 0.78, 1)
         GameTooltip:AddLine("Auto-sell junk, auto-repair, guild repair", 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
-    settingsBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    settingsBtn:SetScript("OnLeave", function()
+        settingsTex:SetVertexColor(0.95, 0.85, 0.5)
+        GameTooltip:Hide()
+    end)
     settingsBtn:SetScript("OnClick", function() VB:ToggleSettings(f) end)
 
     -- Sell Junk button (left-click = grey only, right-click = grey + T items)

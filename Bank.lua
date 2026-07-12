@@ -98,7 +98,7 @@ local function CreateBankButton(parent, bag, slot)
 
     btn.ilvlText = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.ilvlText, 10, "OUTLINE")
-    btn.ilvlText:SetPoint("TOPLEFT", 2, -2)
+    btn.ilvlText:SetPoint("BOTTOMLEFT", 2, 2)  -- clear of top-center markers (see VoidBags.lua)
     btn.ilvlText:SetTextColor(P.text[1], P.text[2], P.text[3])
 
     btn.learnMark = btn:CreateFontString(nil, "OVERLAY")
