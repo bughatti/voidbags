@@ -98,24 +98,24 @@ local function CreateBankButton(parent, bag, slot)
 
     btn.ilvlText = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.ilvlText, 10, "OUTLINE")
-    btn.ilvlText:SetPoint("BOTTOMLEFT", 2, 2)  -- clear of top-center markers (see VoidBags.lua)
+    btn.ilvlText:SetPoint("TOPLEFT", 2, -2)  -- markers moved to top-right instead (see VoidBags.lua)
     btn.ilvlText:SetTextColor(P.text[1], P.text[2], P.text[3])
 
     btn.learnMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.learnMark, 12, "OUTLINE")
-    btn.learnMark:SetPoint("TOP", 0, -1)
+    btn.learnMark:SetPoint("TOPRIGHT", -2, -1)
     btn.learnMark:SetText("|cff00ff00L|r") --green
     btn.learnMark:Hide()
 
     btn.craftMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.craftMark, 12, "OUTLINE")
-    btn.craftMark:SetPoint("TOP", 0, -1)
+    btn.craftMark:SetPoint("TOPRIGHT", -2, -1)
     btn.craftMark:SetText("|cff00ff00C|r")
     btn.craftMark:Hide()
 
     btn.trashMark = btn:CreateFontString(nil, "OVERLAY")
     VB:SetFont(btn.trashMark, 12, "OUTLINE")
-    btn.trashMark:SetPoint("TOP", 0, -1)
+    btn.trashMark:SetPoint("TOPRIGHT", -2, -1)
     btn.trashMark:SetText("|cff00ff00T|r")
     btn.trashMark:Hide()
 
