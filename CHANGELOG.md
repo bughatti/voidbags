@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.3] — 2026-07-12
+
+### Fixed
+- **Item level no longer collides with the item markers.** The ilvl number moved
+  from the top-left to the **bottom-left** corner of each slot (bags *and* bank),
+  so a 3-digit ilvl no longer bleeds under the top-center **L/C/T/$/A/P** markers
+  (the "L" learn mark was sitting right on top of the ilvl).
+- **Settings are easier to find.** The tiny gold `*` in the bag title bar — which
+  read as decoration — is now a recognizable **gear/cog icon** (brightens on
+  hover). It opens the same Auto-sell / Auto-repair / Guild-repair panel, which
+  has been there since 1.0.0 but was easy to miss.
+
 ## [1.2.2] — 2026-07-12
 
 ### Fixed
