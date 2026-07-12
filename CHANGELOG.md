@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.2] — 2026-07-12
+
+### Fixed
+- **Warband items that soulbind in place no longer stay stuck in the Warband category.**
+  A "Warbound until equipped" item keeps its Warbound bind-type flag even after you use or
+  equip it and it becomes soulbound, so it was being kept in the Warband group forever.
+  VoidBags now checks the item's *actual* bound state (the same instance check Blizzard's
+  own Warband tint uses) instead of the static flag, so once an item soulbinds it drops
+  into its correct category on the next bag refresh.
+
 ## [1.2.1] — 2026-07-04
 
 ### Fixed
