@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.5] — 2026-07-12
+
+### Fixed
+- **Off-armor-type items no longer show as upgrades.** A Shadow Priest was seeing
+  plate boots flagged as an upgrade — the check only compared item level, never
+  whether your class can actually wear that armor type. Now Cloth/Leather/Mail/
+  Plate are gated to your class (jewelry, cloaks and weapons are unaffected), so
+  a caster never sees plate/mail/leather flagged. Applies to bags, bank, and the
+  Warband bank (shared logic).
+
+### Changed
+- **The upgrade indicator is now the recognizable green arrow.** The easy-to-miss
+  "^" that marked an item as an upgrade is replaced with Blizzard's own bag
+  upgrade-arrow (the `bags-greenarrow` atlas) in the **bottom-left** corner — the
+  same green arrow players know from the default bags — in the main bags **and the
+  bank / Warband bank** (previously it sat on top of the item level there). The
+  upgrade call behind it is VoidGear's built-in gearscore, recently overhauled
+  with current stat weights and trinket rankings.
+
 ## [1.2.4] — 2026-07-12
 
 ### Fixed
