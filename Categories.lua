@@ -136,11 +136,37 @@ end
 ----------------------------------------------------------------------
 -- Upgrade detection (simple ilvl comparison, VoidGearScore if available)
 ----------------------------------------------------------------------
+-- Armor type the player's class can actually wear
+-- (Cloth=1, Leather=2, Mail=3, Plate=4). Misc armor (subclass 0 -- cloaks,
+-- rings, necks, trinkets) and anything not one of the 4 real types is wearable
+-- by everyone, so it passes.
+local CLASS_ARMOR_SUBCLASS = {
+    PRIEST = 1, MAGE = 1, WARLOCK = 1,
+    ROGUE = 2, DRUID = 2, MONK = 2, DEMONHUNTER = 2,
+    HUNTER = 3, SHAMAN = 3, EVOKER = 3,
+    WARRIOR = 4, PALADIN = 4, DEATHKNIGHT = 4,
+}
+function VB:CanWearArmorSubclass(subclassID)
+    if subclassID ~= 1 and subclassID ~= 2 and subclassID ~= 3 and subclassID ~= 4 then
+        return true  -- not a class-gated armor type (jewelry, cloak, etc.)
+    end
+    local _, class = UnitClass("player")
+    local wear = CLASS_ARMOR_SUBCLASS[class]
+    return (wear == nil) or (subclassID == wear)
+end
+
 function VB:IsUpgrade(bag, slot, itemLink)
     if not itemLink then return false, 0 end
 
-    local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(itemLink)
+    local _, _, _, equipLoc0, _, classID, subclassID = C_Item.GetItemInfoInstant(itemLink)
     if classID ~= Enum.ItemClass.Armor and classID ~= Enum.ItemClass.Weapon then
+        return false, 0
+    end
+    -- A Priest can't wear plate, a Hunter can't wear cloth, etc. Without this a
+    -- higher-ilvl off-type piece shows as an "upgrade" it could never equip.
+    -- Cloaks are subclass "Cloth" but every class wears them, so exclude them.
+    if classID == Enum.ItemClass.Armor and equipLoc0 ~= "INVTYPE_CLOAK"
+       and not VB:CanWearArmorSubclass(subclassID) then
         return false, 0
     end
 

@@ -153,10 +153,13 @@ local function CreateItemButton(parent, bag, slot)
     btn.protectedMark:SetText("|cff00ff00P|r")
     btn.protectedMark:Hide()
 
-    btn.upgradeMark = btn:CreateFontString(nil, "OVERLAY")
-    VB:SetFont(btn.upgradeMark, 14, "OUTLINE")
-    btn.upgradeMark:SetPoint("TOPLEFT", -1, 2)
-    btn.upgradeMark:SetText("|cff00ff00^|r")
+    -- Upgrade indicator: Blizzard's own bag upgrade-arrow atlas (the green arrow
+    -- players already recognize) instead of a subtle "^" glyph. Bottom-left,
+    -- clear of the ilvl (top-left), markers (top-right) and count (bottom-right).
+    btn.upgradeMark = btn:CreateTexture(nil, "OVERLAY")
+    btn.upgradeMark:SetSize(15, 15)
+    btn.upgradeMark:SetPoint("BOTTOMLEFT", 1, 1)
+    btn.upgradeMark:SetAtlas("bags-greenarrow")
     btn.upgradeMark:Hide()
 
     btn.ahMark = btn:CreateFontString(nil, "OVERLAY")

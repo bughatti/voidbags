@@ -119,10 +119,11 @@ local function CreateBankButton(parent, bag, slot)
     btn.trashMark:SetText("|cff00ff00T|r")
     btn.trashMark:Hide()
 
-    btn.upgradeMark = btn:CreateFontString(nil, "OVERLAY")
-    VB:SetFont(btn.upgradeMark, 14, "OUTLINE")
-    btn.upgradeMark:SetPoint("TOPLEFT", -1, 2)
-    btn.upgradeMark:SetText("|cff00ff00^|r")
+    -- Recognizable green upgrade arrow (bottom-left), matching the main bag.
+    btn.upgradeMark = btn:CreateTexture(nil, "OVERLAY")
+    btn.upgradeMark:SetSize(15, 15)
+    btn.upgradeMark:SetPoint("BOTTOMLEFT", 1, 1)
+    btn.upgradeMark:SetAtlas("bags-greenarrow")
     btn.upgradeMark:Hide()
 
     btn.ahMark = btn:CreateFontString(nil, "OVERLAY")
