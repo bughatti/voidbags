@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.6] — 2026-07-20
+
+### Added
+- **Bag swapping from the bag bar.** Drag a bag onto a bag slot to equip it, drag
+  it back out to remove it, or click a slot while holding a bag to slot it in —
+  with tooltip hints on each slot.
+- **"Buy Tab" button on the bank.** Shows the next tab's cost for both the Bank and
+  Warband banks. Because addons can't purchase tabs directly (the API is
+  restricted), clicking it opens Blizzard's own bank so you can complete the
+  purchase there.
+
+### Fixed
+- **Bank tabs you purchase now actually appear.** The bank read a hardcoded list of
+  tab container IDs, so a newly bought tab could stay invisible even after a
+  `/reload`. It now reads the real IDs the game reports and refreshes the instant a
+  tab is bought.
+- **The bank no longer jumps to the bottom when you move an item.** Right-clicking
+  an item to your bags kept snapping the list to the bottom; it now holds your
+  scroll position exactly where it was.
+
 ## [1.2.5] — 2026-07-12
 
 ### Fixed

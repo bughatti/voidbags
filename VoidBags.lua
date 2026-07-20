@@ -1109,16 +1109,39 @@ local function CreateBagFrame()
             bagIcon:SetPoint("BOTTOMRIGHT", -2, 2)
             bagIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-            if bag == 0 then
-                bagIcon:SetTexture("Interface\\Buttons\\Button-Backpack-Up")
-            else
-                local invID = C_Container.ContainerIDToInventoryID(bag)
-                local texID = GetInventoryItemTexture("player", invID)
-                bagIcon:SetTexture(texID or "Interface\\Icons\\INV_Misc_Bag_07")
+            local function refreshIcon()
+                if bag == 0 then
+                    bagIcon:SetTexture("Interface\\Buttons\\Button-Backpack-Up")
+                else
+                    local texID = GetInventoryItemTexture("player", C_Container.ContainerIDToInventoryID(bag))
+                    bagIcon:SetTexture(texID or "Interface\\Icons\\INV_Misc_Bag_07")
+                end
             end
+            refreshIcon()
 
             bagBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            -- Bag swapping (Blizzard's own bag-slot API on the container's
+            -- inventory slot): drag a bag onto a slot to equip it, drag it out to
+            -- remove, or click a slot while holding a bag to slot it in. Backpack
+            -- (bag 0) is built-in, so it has no swap.
+            if bag > 0 then
+                bagBtn:RegisterForDrag("LeftButton")
+                bagBtn:SetScript("OnDragStart", function()
+                    PickupBagFromSlot(C_Container.ContainerIDToInventoryID(bag))
+                    C_Timer.After(0.1, refreshIcon)
+                end)
+                bagBtn:SetScript("OnReceiveDrag", function()
+                    PutItemInBag(C_Container.ContainerIDToInventoryID(bag))
+                    C_Timer.After(0.1, refreshIcon)
+                end)
+            end
             bagBtn:SetScript("OnClick", function(self, mouseBtn)
+                -- Holding a bag on the cursor? Slot it into this bag slot.
+                if bag > 0 and CursorHasItem() then
+                    PutItemInBag(C_Container.ContainerIDToInventoryID(bag))
+                    C_Timer.After(0.1, refreshIcon)
+                    return
+                end
                 if mouseBtn == "RightButton" then
                     -- Right-click: show filter assignment menu
                     if filterMenu and filterMenu:IsShown() and filterMenu._bag == bag then
@@ -1168,6 +1191,8 @@ local function CreateBagFrame()
                 GameTooltip:AddLine("Left-click: Filter this bag", P.textDim[1], P.textDim[2], P.textDim[3])
                 if bag > 0 then
                     GameTooltip:AddLine("Right-click: Assign bag type", P.textDim[1], P.textDim[2], P.textDim[3])
+                    GameTooltip:AddLine("Drag a bag here (or click holding one) to swap it in", P.textDim[1], P.textDim[2], P.textDim[3])
+                    GameTooltip:AddLine("Drag out to remove the bag", P.textDim[1], P.textDim[2], P.textDim[3])
                 end
                 GameTooltip:Show()
             end)

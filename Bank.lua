@@ -11,6 +11,8 @@ local bankSectionButtons = {}
 local bankIsOpen = false
 local warbandTab
 local bankRefreshTimer
+local blizzBankRevealed = false  -- true only while the player is buying a tab via Blizzard's bank
+local hidingBlizzBank = false    -- reentrancy guard for the BankFrame:SetPoint hook
 
 ----------------------------------------------------------------------
 -- Bank bag IDs (Midnight 12.0)
@@ -35,6 +37,32 @@ local WARBAND_BAG_IDS = {
     BagIndex.AccountBankTab_4 or 15,
     BagIndex.AccountBankTab_5 or 16,
 }
+
+-- The lists above are a FALLBACK. The authoritative container IDs for the tabs
+-- you actually own come from C_Bank.FetchPurchasedBankTabData(bankType) -> each
+-- entry's .ID. A tab purchased after login can land on a container the static
+-- guess doesn't cover, so it read 0 slots and never appeared (even after a
+-- /reload). RefreshBankBagIDs rebuilds both lists IN PLACE (wipe+refill keeps the
+-- table identity, so every existing reference stays valid) from the real data.
+-- If the API returns nothing yet (bank not loaded), the fallback contents remain.
+local function RefreshBankBagIDs()
+    if not (C_Bank and C_Bank.FetchPurchasedBankTabData) then return end
+    local function fill(dst, bankType)
+        local ok, tabs = pcall(C_Bank.FetchPurchasedBankTabData, bankType)
+        if ok and type(tabs) == "table" and #tabs > 0 then
+            local ids = {}
+            for _, tab in ipairs(tabs) do
+                if tab and tab.ID then ids[#ids + 1] = tab.ID end
+            end
+            if #ids > 0 then
+                wipe(dst)
+                for _, id in ipairs(ids) do dst[#dst + 1] = id end
+            end
+        end
+    end
+    fill(BANK_BAG_IDS, (Enum.BankType and Enum.BankType.Character) or 0)
+    fill(WARBAND_BAG_IDS, (Enum.BankType and Enum.BankType.Account) or 2)
+end
 
 ----------------------------------------------------------------------
 -- Categorize bank items
@@ -364,8 +392,28 @@ local function ClearBankButton(btn)
     btn.hasItem = false
 end
 
+-- Set the bank scroll position robustly. SetVerticalScroll alone doesn't update
+-- the scrollbar, so when the content height changes UIPanelScrollFrame's
+-- OnScrollRangeChanged re-applies the bar's stale value and the view snaps to the
+-- bottom. Driving the scrollbar itself (immediately AND again next frame, after
+-- the range recalcs) makes the position stick. The bar clamps the value.
+local function SetBankScroll(value)
+    local scroll = bankFrame and bankFrame.scroll
+    if not scroll then return end
+    local sb = scroll.ScrollBar
+    if not sb and scroll.GetName and scroll:GetName() then
+        sb = _G[scroll:GetName() .. "ScrollBar"]
+    end
+    if sb and sb.SetValue then pcall(sb.SetValue, sb, value) end
+    if scroll.SetVerticalScroll then pcall(scroll.SetVerticalScroll, scroll, value) end
+end
+
 LayoutBank = function(bagList)
     if not bankFrame then return end
+
+    -- Preserve the player's scroll position across a refresh (clamped to the new
+    -- range) so moving an item doesn't fling the view to the bottom or the top.
+    local prevScroll = (bankFrame.scroll and bankFrame.scroll:GetVerticalScroll()) or 0
 
     local columns = VB:GetConfig("columns")
     local iconSize = VB:GetConfig("iconSize")
@@ -516,7 +564,8 @@ LayoutBank = function(bagList)
     contentParent:SetHeight(math.max(yOffset, 100))
 
     if bankFrame.scroll then
-        bankFrame.scroll:SetVerticalScroll(0)
+        SetBankScroll(prevScroll)
+        C_Timer.After(0, function() SetBankScroll(prevScroll) end)
     end
 
     -- Empty message if no items AND no slots
@@ -745,10 +794,93 @@ local function CreateBankFrame()
     end)
     moveTBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
+    -- Buy Tab button — reveals Blizzard's native bank so the player can buy the
+    -- next tab there. C_Bank.PurchaseBankTab is a RESTRICTED api (HasRestrictions
+    -- in BankDocumentation.lua) — an addon CANNOT call it, even via a StaticPopup:
+    -- the click is silently refused (no tab, no charge). The only working path is
+    -- Blizzard's own secure bank UI, which we normally park off-screen, so on click
+    -- we un-hide it. Reading cost/afford (CanPurchaseBankTab / FetchNextPurchasable
+    -- BankTabData) is NOT restricted, so the button can still show the price.
+    local buyTabBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
+    buyTabBtn:SetSize(64, 18)
+    buyTabBtn:SetPoint("RIGHT", moveTBtn, "LEFT", -4, 0)
+    VB:CreateBackdrop(buyTabBtn, "section")
+    local buyTabTxt = buyTabBtn:CreateFontString(nil, "OVERLAY")
+    VB:SetFont(buyTabTxt, 10, "")
+    buyTabTxt:SetPoint("CENTER")
+    buyTabTxt:SetText(VB.C_GREEN .. "Buy Tab|r")
+    buyTabBtn.txt = buyTabTxt
+    f.buyTabBtn = buyTabBtn
+
+    local function CurrentBankType()
+        if f.activeTab == "warband" then
+            return (Enum and Enum.BankType and Enum.BankType.Account) or 2
+        end
+        return (Enum and Enum.BankType and Enum.BankType.Character) or 0
+    end
+
+    -- Refresh visibility / cost. Hidden when the bank type is maxed or has no
+    -- purchasable tab; green when affordable, dim when not.
+    function f.UpdateBuyTabButton()
+        local btn = f.buyTabBtn
+        if not btn then return end
+        if not (C_Bank and C_Bank.CanPurchaseBankTab) then btn:Hide(); return end
+        local bankType = CurrentBankType()
+        if C_Bank.HasMaxBankTabs and C_Bank.HasMaxBankTabs(bankType) then
+            btn:Hide(); return
+        end
+        local cost, canAfford
+        if C_Bank.FetchNextPurchasableBankTabData then
+            local ok, data = pcall(C_Bank.FetchNextPurchasableBankTabData, bankType)
+            if ok and data then cost, canAfford = data.tabCost, data.canAfford end
+        end
+        if cost == nil then btn:Hide(); return end  -- nothing left to purchase
+        btn.cost, btn.canAfford = cost, canAfford
+        btn.txt:SetText((canAfford and VB.C_GREEN or VB.C_DIM) .. "Buy Tab|r")
+        btn:Show()
+    end
+
+    buyTabBtn:SetScript("OnClick", function()
+        local bankType = CurrentBankType()
+        if C_Bank and C_Bank.HasMaxBankTabs and C_Bank.HasMaxBankTabs(bankType) then
+            print(VB.C_CYAN .. "[VoidBags]|r You already own the maximum number of tabs.")
+            return
+        end
+        -- PurchaseBankTab is restricted; addons can't buy tabs. Reveal Blizzard's
+        -- real bank (we parked it off-screen) so the player clicks its native "+"
+        -- purchase tab. BANK_TABS_CHANGED then refreshes our view automatically.
+        -- Set the reveal flag first so the park-hook doesn't immediately re-hide it.
+        blizzBankRevealed = true
+        if BankFrame then
+            BankFrame:SetAlpha(1)
+            BankFrame:EnableMouse(true)
+            BankFrame:ClearAllPoints()
+            BankFrame:SetPoint("LEFT", UIParent, "LEFT", 40, 0)
+            pcall(BankFrame.Raise, BankFrame)
+        end
+        print(VB.C_CYAN .. "[VoidBags]|r Blizzard's bank is now shown on the left. " ..
+            "Addons can't buy tabs directly, so click the \"" .. VB.C_GREEN .. "+|r\" purchase tab " ..
+            "on its edge to buy. It re-hides next time you open the bank.")
+    end)
+    buyTabBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine(f.activeTab == "warband" and "Buy Warband Bank Tab" or "Buy Bank Tab", 0, 0.78, 1)
+        if self.cost then
+            GameTooltip:AddLine("Next tab cost: " .. GetMoneyString(self.cost, true), 0.9, 0.9, 0.9)
+            if self.canAfford == false then
+                GameTooltip:AddLine("You can't afford this yet.", 1, 0.3, 0.3)
+            end
+        end
+        GameTooltip:AddLine("Opens Blizzard's bank to buy (addons can't purchase", 0.6, 0.6, 0.6)
+        GameTooltip:AddLine("tabs directly). Click its \"+\" tab to complete.", 0.6, 0.6, 0.6)
+        GameTooltip:Show()
+    end)
+    buyTabBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     -- Bound the title's right edge to the left of the button cluster so a long
-    -- title ("VoidBags — Warband Bank") can never overlap "T -> Bags" on a
+    -- title ("VoidBags — Warband Bank") can never overlap the buttons on a
     -- narrow window. Single-line, left-justified, truncates instead of bleeding.
-    title:SetPoint("RIGHT", moveTBtn, "LEFT", -8, 0)
+    title:SetPoint("RIGHT", buyTabBtn, "LEFT", -8, 0)
     title:SetJustifyH("LEFT")
     title:SetWordWrap(false)
 
@@ -756,6 +888,7 @@ local function CreateBankFrame()
 
     bankTabBtn:SetScript("OnClick", function()
         f.activeTab = "bank"
+        RefreshBankBagIDs()
         bankTabTxt:SetText(VB.C_CYAN .. "Bank|r")
         warbandTabTxt:SetText(VB.C_DIM .. "Warband|r")
         title:SetText(VB.C_CYAN .. "VoidBags — Bank|r")
@@ -763,10 +896,12 @@ local function CreateBankFrame()
         if f.depositBtn then f.depositBtn:Hide() end
         if f.BuildBagBar then f.BuildBagBar(BANK_BAG_IDS, "Bank") end
         LayoutBank(BANK_BAG_IDS)
+        if f.UpdateBuyTabButton then f.UpdateBuyTabButton() end
     end)
 
     warbandTabBtn:SetScript("OnClick", function()
         f.activeTab = "warband"
+        RefreshBankBagIDs()
         if f.depositBtn then f.depositBtn:Show() end
         bankTabTxt:SetText(VB.C_DIM .. "Bank|r")
         warbandTabTxt:SetText(VB.C_CYAN .. "Warband|r")
@@ -777,6 +912,7 @@ local function CreateBankFrame()
         end
         if f.BuildBagBar then f.BuildBagBar(WARBAND_BAG_IDS, "Warband") end
         LayoutBank(WARBAND_BAG_IDS)
+        if f.UpdateBuyTabButton then f.UpdateBuyTabButton() end
     end)
 
     -- Search box
@@ -962,14 +1098,17 @@ local function OnBankOpened()
     bankFrame.activeTab = "bank"
     bankFrame:Show()
     bankIsOpen = true
+    blizzBankRevealed = false  -- fresh session: keep Blizzard's bank parked until Buy Tab
 
     -- Delay slightly to let bank data load
     C_Timer.After(0.3, function()
         if bankIsOpen then
+            RefreshBankBagIDs()
             if bankFrame.BuildBagBar then
                 bankFrame.BuildBagBar(BANK_BAG_IDS, "Bank")
             end
             LayoutBank(BANK_BAG_IDS)
+            if bankFrame.UpdateBuyTabButton then bankFrame.UpdateBuyTabButton() end
         end
     end)
 
@@ -980,6 +1119,7 @@ end
 local function OnBankClosed()
     if bankFrame then bankFrame:Hide() end
     bankIsOpen = false
+    blizzBankRevealed = false
 end
 
 ----------------------------------------------------------------------
@@ -1023,13 +1163,17 @@ bankEf:RegisterEvent("BAG_UPDATE_DELAYED")
 pcall(function() bankEf:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED") end)
 pcall(function() bankEf:RegisterEvent("BANK_BAG_SLOT_FLAGS_UPDATED") end)
 pcall(function() bankEf:RegisterEvent("PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED") end)
+bankEf:RegisterEvent("PLAYER_MONEY")
+pcall(function() bankEf:RegisterEvent("BANK_TABS_CHANGED") end)
 
 local function RefreshBank()
     if not bankIsOpen or not bankFrame then return end
     if bankRefreshTimer then bankRefreshTimer:Cancel() end
     bankRefreshTimer = C_Timer.NewTimer(0.15, function()
         if bankIsOpen and bankFrame then
+            RefreshBankBagIDs()
             LayoutBank(bankFrame.activeTab == "warband" and WARBAND_BAG_IDS or BANK_BAG_IDS)
+            if bankFrame.UpdateBuyTabButton then bankFrame.UpdateBuyTabButton() end
         end
     end)
 end
@@ -1057,12 +1201,27 @@ end)
 -- because hiding it tells the game the bank is closed)
 ----------------------------------------------------------------------
 local function HideBlizzardBank()
-    if BankFrame then
-        BankFrame:SetAlpha(0)
-        BankFrame:ClearAllPoints()
-        BankFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -5000, 0)
-        BankFrame:EnableMouse(false)
-    end
+    if not BankFrame then return end
+    if blizzBankRevealed then return end  -- player asked to see it (buying a tab)
+    hidingBlizzBank = true
+    BankFrame:SetAlpha(0)
+    BankFrame:ClearAllPoints()
+    BankFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -5000, 0)
+    BankFrame:EnableMouse(false)
+    hidingBlizzBank = false
+end
+
+-- Keep Blizzard's bank PARKED. It re-anchors itself back on-screen (default
+-- lower-center) whenever the tabbed bank updates -- e.g. after you move an item --
+-- and VoidBags previously only re-hid it on BANKFRAME_OPENED, so it popped into
+-- view mid-session ("bank jumps to the bottom"). This hook shoves it back off
+-- screen any time something repositions it, except while blizzBankRevealed (the
+-- Buy Tab flow). The hidingBlizzBank guard stops our own SetPoint from recursing.
+if BankFrame then
+    hooksecurefunc(BankFrame, "SetPoint", function()
+        if hidingBlizzBank or blizzBankRevealed or not bankIsOpen then return end
+        HideBlizzardBank()
+    end)
 end
 
 local bankHideHooked = false
