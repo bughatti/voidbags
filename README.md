@@ -110,3 +110,5 @@ Items are routed into intuitive groups so you never lose anything:
 ## Credits
 
 Built for Vede on Elune. Part of the Void* addon family.
+
+*Part of the Void addon family · free M+ & raid player lookups at [voidscout.io](https://voidscout.io)*
