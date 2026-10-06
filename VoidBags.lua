@@ -212,6 +212,11 @@ local function CreateItemButton(parent, bag, slot)
     btn:RegisterForDrag("LeftButton")
     btn:SetAttribute("type2", "macro")
     btn:SetAttribute("macrotext2", "/use " .. bag .. " " .. slot)
+    -- Act on mouse RELEASE regardless of the "cast on key down" setting. Addon secure
+    -- buttons follow ActionButtonUseKeyDown; when it is on (WoW Forever default) the
+    -- action only fires on press, and these buttons only register RightButtonUp, so
+    -- right-click silently did nothing.
+    btn:SetAttribute("useOnKeyDown", false)
     btn:SetAttribute("shift-type2", "")   -- shift+right handled in Lua (dressup)
     btn:SetAttribute("ctrl-type2", "")    -- ctrl+right handled in Lua (split)
     btn:SetAttribute("alt-type2", "")
