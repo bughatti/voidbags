@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.8] — 2026-10-06
+
+### Fixed
+- **Protected items are never auto-sold.** Grey items you protected could still be sold by auto-sell.
+- **Auto-sell now lists what it sold**, with a reminder that mistakes are in the vendor's Buyback tab.
+- `/vb chars` and `/vb search` show your characters' names instead of internal IDs (e.g. "Player-67-…").
+- `/vb protect` with nothing hovered lists your protected items, by name.
+- The split-stack popup no longer errors.
+- The Void addons info panel (`/vhub info`) now lists only the addons you can actually get, with up-to-date descriptions.
+
 ## [1.2.7] — 2026-08-11
 
 ### Changed

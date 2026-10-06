@@ -26,7 +26,7 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 ### Merchant tools
 - **Auto-sell junk** when you open a vendor, plus AH-trash reagents below your price threshold
 - **Auto-repair**, optionally using guild-bank funds
-- **Protected items** — a list VoidBags will never sell, so nothing precious gets vendored
+- **Protected items** — hover an item and type `/vb protect`; VoidBags will never sell it
 
 ### Bank and Warband bank
 - A **companion bank panel** with the same categories
@@ -56,7 +56,7 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 | `/vb threshold <gold>` | Set the AH value below which reagents count as trash |
 | `/vb search <name>` | Find an item across all your characters |
 | `/vb chars` | List tracked characters |
-| `/vb protect` | List protected items |
+| `/vb protect` | List protected items — or hover an item first to protect/unprotect it |
 | `/vb default` | Switch to Blizzard's bags (toggle) |
 | `/vb reset` | Reset position and size |
 | `/vb help` | Show all commands in game |

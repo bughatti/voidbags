@@ -516,6 +516,11 @@ function VB:SnapshotInventory()
     if guid and VoidBagsDB.characters[displayKey] and not VoidBagsDB.characters[guid] then
         VoidBagsDB.characters[guid] = VoidBagsDB.characters[displayKey]
     end
+    -- Drop the stale legacy Name-Realm copy once this character is keyed by GUID,
+    -- otherwise it lists as a second, outdated entry for the same character.
+    if guid and key == guid and displayKey ~= guid then
+        VoidBagsDB.characters[displayKey] = nil
+    end
 
     local data = {
         guid = guid,
@@ -557,15 +562,29 @@ end
 ----------------------------------------------------------------------
 -- Get other characters' items
 ----------------------------------------------------------------------
+-- Readable "Name-Realm" for a character record. Records are keyed by GUID
+-- ("Player-67-0FEDCC20"), which must never be shown to the player.
+function VB:CharacterLabel(key, data)
+    if data and data.displayKey then return data.displayKey end
+    if type(key) == "string" and key:find("^Player%-") and GetPlayerInfoByGUID then
+        local ok, _, _, _, _, _, name, realm = pcall(GetPlayerInfoByGUID, key)
+        if ok and name and name ~= "" then
+            return name .. "-" .. ((realm and realm ~= "") and realm or (GetRealmName() or "?"))
+        end
+        return "Unknown character"
+    end
+    return key
+end
+
 function VB:GetCharacterList()
     local list = {}
     local myKey = VB:GetPlayerKey()
     for key, data in pairs(VoidBagsDB.characters or {}) do
         if key ~= myKey then
-            list[#list + 1] = { key = key, data = data }
+            list[#list + 1] = { key = key, label = VB:CharacterLabel(key, data), data = data }
         end
     end
-    table.sort(list, function(a, b) return a.key < b.key end)
+    table.sort(list, function(a, b) return a.label < b.label end)
     return list
 end
 
@@ -576,7 +595,7 @@ function VB:SearchAllCharacters(searchText)
         for _, item in ipairs(data.bags or {}) do
             if item.name and item.name:lower():find(searchText, 1, true) then
                 results[#results + 1] = {
-                    character = key,
+                    character = VB:CharacterLabel(key, data),
                     class = data.class,
                     itemID = item.id,
                     name = item.name,

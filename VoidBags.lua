@@ -6,6 +6,12 @@ local function dbg(fmt, ...) if VoidSpy and VoidSpy.Log then VoidSpy:Log("VoidBa
 
 local _, VB = ...
 
+-- StaticPopup edit box: 12.x dialogs expose GetEditBox()/.EditBox; the old
+-- lowercase .editBox field is gone (nil).
+local function PopupEditBox(p)
+    return p and ((p.GetEditBox and p:GetEditBox()) or p.EditBox or p.editBox)
+end
+
 -- Open Blizzard's stack-split prompt with multiple compatibility paths.
 -- Midnight 12.0.5 removed the OpenStackSplitFrame() global; the method form
 -- on StackSplitFrame is what survived. If both are missing, fall back to a
@@ -30,13 +36,18 @@ local function ShowSplitPrompt(stackCount, anchorFrame, anchorPoint, relativePoi
         hideOnEscape = true,
         preferredIndex = STATICPOPUP_NUMDIALOGS,
         OnAccept = function(self, data)
-            local n = tonumber((self.editBox:GetText()) or "")
+            local eb = PopupEditBox(self)
+            local n = tonumber((eb and eb:GetText()) or "")
             if n and data and data.bag and data.slot and n > 0 and n < (data.max or 0) then
                 C_Container.SplitContainerItem(data.bag, data.slot, n)
             end
         end,
-        EditBoxOnEnterPressed = function(self) self:GetParent().button1:Click() end,
-        OnShow = function(self) self.editBox:SetFocus() end,
+        EditBoxOnEnterPressed = function(self)
+            local p = self:GetParent()
+            local b = p and ((p.GetButton1 and p:GetButton1()) or p.Button1 or p.button1)
+            if b then b:Click() end
+        end,
+        OnShow = function(self) local eb = PopupEditBox(self); if eb then eb:SetFocus() end end,
     }
     local data = { bag = bag, slot = slot, max = stackCount }
     local popup = StaticPopup_Show("VOIDBAGS_SPLIT_STACK", stackCount - 1, stackCount, data)
@@ -696,11 +707,14 @@ local function SellJunk(includeTrash)
     end
 
     local count, total = 0, 0
+    local soldNames = {}
+    local protected = (VoidBagsDB and VoidBagsDB.protected) or {}
     for _, bag in ipairs(ALL_BAGS) do
         local numSlots = C_Container.GetContainerNumSlots(bag)
         for slot = 1, numSlots do
             local info = C_Container.GetContainerItemInfo(bag, slot)
-            if info then
+            local cleanID = info and info.itemID and not VoidLib.Secrets.IsSecret(info.itemID) and info.itemID
+            if info and not (cleanID and protected[cleanID]) then   -- protected items are never sold
                 local shouldSell = false
                 -- Always sell grey junk
                 if info.quality == 0 then
@@ -716,6 +730,11 @@ local function SellJunk(includeTrash)
                 if shouldSell then
                     C_Container.UseContainerItem(bag, slot)
                     count = count + 1
+                    local link = C_Container.GetContainerItemLink(bag, slot)
+                    local stack = info.stackCount
+                    if link and not VoidLib.Secrets.IsSecret(link) then
+                        soldNames[#soldNames + 1] = link .. ((stack and not VoidLib.Secrets.IsSecret(stack) and stack > 1) and ("x" .. stack) or "")
+                    end
                     -- info.itemID / stackCount can be secret values in tainted contexts; guard via VoidLib.
                     if info.itemID and not VoidLib.Secrets.IsSecret(info.itemID) then
                         local _, _, _, _, _, _, _, _, _, _, vendorPrice = C_Item.GetItemInfo(info.itemID)
@@ -731,6 +750,10 @@ local function SellJunk(includeTrash)
 
     if count > 0 then
         print(VB.C_CYAN .. "[VoidBags]|r Sold " .. count .. " junk items for " .. VB:FormatMoney(total))
+        if #soldNames > 0 then
+            print(VB.C_DIM .. "  " .. table.concat(soldNames, ", ") .. "|r")
+            print(VB.C_DIM .. "  Sold something by mistake? It's in the vendor's Buyback tab. Hover an item + /vb protect to keep it.|r")
+        end
     else
         print(VB.C_CYAN .. "[VoidBags]|r No junk to sell.")
     end
@@ -2163,7 +2186,7 @@ SlashCmdList["VOIDBAGS"] = function(msg)
             if #results == 0 then
                 print(VB.C_CYAN .. "[VoidBags]|r No matches for '" .. term .. "' on other characters.")
             else
-                print(VB.C_CYAN .. "[VoidBags]|r Found on other characters:")
+                print(VB.C_CYAN .. "[VoidBags]|r Found on your characters:")
                 for _, r in ipairs(results) do
                     local classColor = RAID_CLASS_COLORS[r.class]
                     local cc = classColor and classColor.colorStr or "ffffffff"
@@ -2187,7 +2210,7 @@ SlashCmdList["VOIDBAGS"] = function(msg)
                 local cc = classColor and classColor.colorStr or "ffffffff"
                 local ago = time() - (c.data.timestamp or 0)
                 local agoStr = ago < 3600 and (math.floor(ago / 60) .. "m ago") or (math.floor(ago / 3600) .. "h ago")
-                print("  |c" .. cc .. c.key .. "|r  ilvl " .. (c.data.ilvl or "?") .. "  " .. VB:FormatMoney(c.data.money or 0) .. "  " .. VB.C_DIM .. agoStr .. "|r")
+                print("  |c" .. cc .. c.label .. "|r  ilvl " .. (c.data.ilvl or "?") .. "  " .. VB:FormatMoney(c.data.money or 0) .. "  " .. VB.C_DIM .. agoStr .. "|r")
             end
         end
         return
@@ -2212,7 +2235,33 @@ SlashCmdList["VOIDBAGS"] = function(msg)
                 if isOpen then DebouncedRefresh() end
             end
         else
-            print(VB.C_CYAN .. "[VoidBags]|r Hover over an item first, then type /vb protect")
+            -- Nothing hovered: list what's protected (README: "/vb protect — List protected items").
+            -- Item names come from the client cache; ask the server for any missing ones
+            -- and print once they arrive instead of showing "item 238373".
+            local ids = {}
+            for id in pairs(VoidBagsDB.protected or {}) do ids[#ids + 1] = id end
+            if #ids == 0 then
+                print(VB.C_CYAN .. "[VoidBags]|r No protected items yet.")
+                print(VB.C_DIM .. "  Hover an item and type /vb protect to protect or unprotect it.|r")
+                return
+            end
+            local function PrintList()
+                local names = {}
+                for _, id in ipairs(ids) do
+                    names[#names + 1] = C_Item.GetItemNameByID(id) or ("item " .. id)
+                end
+                table.sort(names)
+                print(VB.C_CYAN .. "[VoidBags]|r Protected items (" .. #names .. "): " .. table.concat(names, ", "))
+                print(VB.C_DIM .. "  Hover an item and type /vb protect to protect or unprotect it.|r")
+            end
+            local missing = false
+            for _, id in ipairs(ids) do
+                if not C_Item.GetItemNameByID(id) then
+                    missing = true
+                    if C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
+                end
+            end
+            if missing then C_Timer.After(0.6, PrintList) else PrintList() end
         end
         return
     end
