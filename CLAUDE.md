@@ -17,7 +17,7 @@
 ## Features
 
 - Categorized bags (drag-free auto-sort by category)
-- Item markers: **L** (learnable), **C** (catalyzable), **T** (transmog new), **$** (sellable), **A** (AH-valuable), **P** (profession mat)
+- Item markers (verified in code 2026-10-05; priority P > L > C > A > $ > T): **P** protected, **L** learnable, **C** mat for your own profession (`craftable`), **A** an alt's profession needs it (`altNeeds`), **$** sell on AH (`sellAH`), **T** vendor trash. Plus green upgrade arrow + ilvl (bottom-left) and AH value text.
 - Bank + warband integration
 - Search, sort, bag filters
 - Cross-character tracking (alt inventory)
