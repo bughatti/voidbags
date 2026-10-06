@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.9] — 2026-10-06
+
+### Fixed
+- **Right-click to equip or use items did nothing** for players with WoW's "Cast action keybinds on key down" option turned on. Bag and bank items now respond to right-click whatever that setting is.
+
+### New
+- **WoW Forever support:** VoidBags now loads in WoW Forever as well as retail.
+
 ## [1.2.8] — 2026-10-06
 
 ### Fixed
