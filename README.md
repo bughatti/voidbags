@@ -73,7 +73,7 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 
 ## Compatibility
 
-- **WoW 12.1** (Midnight Season 2)
+- **WoW 12.1.5** (Midnight Season 2)
 - **WoW Forever** supported too
 - Standalone — nothing else to install
 - Plays nicely with ElvUI, VoidUI, and the default UI
