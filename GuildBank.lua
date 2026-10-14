@@ -1,3 +1,5 @@
+-- 12.1.5 removed the global GetCoinTextureString; use C_CurrencyInfo's.
+local GetCoinTextureString = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString) or GetCoinTextureString
 ----------------------------------------------------------------------
 -- VoidBags: GuildBank — READ-ONLY guild vault browser + search + cache
 ----------------------------------------------------------------------

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.10] — 2026-10-14
+
+### Changed
+- Updated for WoW 12.1.5 — no longer shows as out of date.
+
+### Fixed
+- **Guild bank gold showed as a raw number** (copper) instead of gold/silver/copper after 12.1.5 removed an old game function.
+
 ## [1.2.9] — 2026-10-06
 
 ### Fixed
