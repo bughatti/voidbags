@@ -1307,6 +1307,19 @@ local function VisualShow(frame)
     end
 end
 
+-- ESC: Blizzard's CloseAllWindows only counts frames listed in UISpecialFrames
+-- as "something was closed"; otherwise it opens the Game Menu too. The bag
+-- frame can't be listed (CloseAllWindows calls :Hide(), which its secure item
+-- buttons forbid in combat), so a plain stand-in frame is listed instead: shown
+-- while the bags are open, ESC hides it, and its OnHide closes the bags the
+-- combat-safe way (VisualHide).
+local escProxy = CreateFrame("Frame", "VoidBagsEscProxy", UIParent)
+escProxy:Hide()
+tinsert(UISpecialFrames, "VoidBagsEscProxy")
+escProxy:SetScript("OnHide", function()
+    if isOpen then VB:CloseBags() end
+end)
+
 local function VisualHide(frame)
     if not frame then return end
     -- OUT OF COMBAT: actually :Hide() the frame. This is the only way to
@@ -1340,6 +1353,7 @@ function VB:OpenBags()
         end
         VisualShow(bagFrame)
         isOpen = true
+        escProxy:Show()
         VB._pendingClose = nil
         pendingRefresh = true
         dbg("OpenBags EXIT (combat path)")
@@ -1354,6 +1368,7 @@ function VB:OpenBags()
     LayoutBags()
     VisualShow(bagFrame)
     isOpen = true
+    escProxy:Show()
     VB:SnapshotInventory()
     dbg("OpenBags EXIT (normal) alpha=%s shown=%s",
         bagFrame and tostring(bagFrame:GetAlpha()) or "nil",
@@ -1366,6 +1381,7 @@ function VB:CloseBags()
     VisualHide(bagFrame)
     VisualHide(crossCharFrame)
     isOpen = false
+    if escProxy:IsShown() then escProxy:Hide() end   -- isOpen is false first, so OnHide is a no-op
     VB._pendingClose = nil
     dbg("CloseBags EXIT")
 end
