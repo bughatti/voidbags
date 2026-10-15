@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.11] — 2026-10-15
+
+### Fixed
+- **ESC closed the bags but also opened the Game Menu.** ESC now just closes the bags, like any other window.
+
 ## [1.2.10] — 2026-10-14
 
 ### Changed
