@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.12] — 2026-10-16
+
+### Fixed
+- **Upgrade arrows on gear you can't really use.** The green arrow no longer shows on:
+  - off-hands and shields while you're holding a two-handed weapon,
+  - shields for classes that can't use them,
+  - weapons and gear meant for a different spec (wrong weapon type or main stat),
+  - pieces that would break your active 2- or 4-piece tier set bonus.
+- **Arrows ignored your secondary stats.** If you also run VoidGear, gear is now compared by your spec's stat priority (e.g. Haste over Versatility for Shadow), not just item level.
+- **Trinket arrows judged trinkets by item level alone.** A trinket now only shows an arrow if it out-levels both of the ones you're wearing — and if you also run VoidGear, trinkets are ranked by how good they are for your spec instead.
+
 ## [1.2.11] — 2026-10-15
 
 ### Fixed
