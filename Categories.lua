@@ -155,6 +155,99 @@ function VB:CanWearArmorSubclass(subclassID)
     return (wear == nil) or (subclassID == wear)
 end
 
+-- Only these classes can equip shields (armor subclass 6).
+local SHIELD_CLASSES = { WARRIOR = true, PALADIN = true, SHAMAN = true }
+
+-- Can the player's CURRENT spec use this item? GetItemSpecInfo returns the
+-- spec IDs allowed to use it -- covers armor type, weapon proficiency AND
+-- primary stat in one call (a sword lists only sword specs, a healer-only
+-- off-hand omits Shadow). nil or an empty table = no restriction (jewelry).
+local function SpecCanUse(itemLink)
+    if not (C_Item.GetItemSpecInfo and GetSpecialization and GetSpecializationInfo) then return true end
+    local ok, specs = pcall(C_Item.GetItemSpecInfo, itemLink)
+    if not ok or type(specs) ~= "table" or #specs == 0 then return true end
+    local idx = GetSpecialization()
+    local mySpec = idx and GetSpecializationInfo(idx)
+    if not mySpec then return true end
+    for _, id in ipairs(specs) do
+        if id == mySpec then return true end
+    end
+    return false
+end
+
+-- Would swapping out the item in equipment slot invSlot drop an active set bonus?
+-- True when that item belongs to a set the bag item isn't part of and the
+-- equipped count sits exactly on a bonus threshold (2 or 4 pieces).
+local function BreaksSetBonus(invSlot, bagSetID)
+    local link = GetInventoryItemLink("player", invSlot)
+    if not link then return false end
+    local setID = select(16, C_Item.GetItemInfo(link))
+    if not setID or setID == 0 or setID == bagSetID then return false end
+    local count = 0
+    for i = 1, 17 do
+        local l = GetInventoryItemLink("player", i)
+        if l and select(16, C_Item.GetItemInfo(l)) == setID then count = count + 1 end
+    end
+    return count == 2 or count == 4
+end
+
+-- VoidGear stat-weight score for a link (your spec's secondary priority +
+-- sockets/effects). nil when VoidGear isn't loaded -> callers fall back to ilvl.
+local function GearScore(link)
+    local vg = VoidGear
+    if not (link and vg and vg.Scorer and vg.Scorer.ScoreLink and vg.StatWeights and vg.StatWeights.GetCurrent) then
+        return nil
+    end
+    local okW, preset = pcall(vg.StatWeights.GetCurrent, vg.StatWeights)
+    if not okW or not preset or not preset.weights then return nil end
+    local ok, score, breakdown = pcall(vg.Scorer.ScoreLink, vg.Scorer, link, preset.weights, preset.primary)
+    if not ok or type(score) ~= "number" then return nil end
+    -- Drop VoidGear's "Effects" term for gear comparisons: it values an EMPTY gem
+    -- socket at a flat placeholder (200) while a FILLED socket scores 0, so every
+    -- socketed bag drop "beat" your gemmed piece. Gems are small and you'd move
+    -- yours over anyway; set bonuses are handled separately (BreaksSetBonus).
+    if type(breakdown) == "table" and breakdown.Effects then
+        score = score - breakdown.Effects
+    end
+    if score > 0 then return score end
+    return nil
+end
+
+-- Trinket comparison. With VoidGear loaded, rank by its per-spec trinket tiers
+-- (S > A > B > C > unranked) and only fall back to ilvl within the same tier --
+-- a 276 B-tier trinket is NOT an upgrade over a 272 A-tier one. Without VoidGear,
+-- only flag a trinket that out-levels BOTH equipped ones (ilvl alone can't tell
+-- which of two trinkets is better, so don't guess).
+local TIER_RANK = { S = 4, A = 3, B = 2, C = 1 }
+local function TrinketTier(link)
+    local ev = VoidGear and VoidGear.EffectValues and VoidGear.EffectValues.bySpec
+    local idx = GetSpecialization and GetSpecialization()
+    local spec = idx and GetSpecializationInfo(idx)
+    local tiers = ev and spec and ev[spec] and ev[spec].trinketsByName
+    if not tiers then return nil end
+    local name = link and C_Item.GetItemInfo(link)
+    return TIER_RANK[name and tiers[name]] or 0
+end
+
+local function TrinketUpgrade(itemLink, bagIlvl, equippedSlotIlvl)
+    local i13, i14 = equippedSlotIlvl(13), equippedSlotIlvl(14)
+    if i13 == 0 or i14 == 0 then return true, 100 end  -- empty trinket slot
+    local bagTier = TrinketTier(itemLink)
+    if bagTier == nil then
+        local best = math.max(i13, i14)
+        if bagIlvl > best then return true, ((bagIlvl - best) / best) * 100 end
+        return false, 0
+    end
+    -- Replace the weaker equipped trinket: lowest tier, then lowest ilvl.
+    local t13 = TrinketTier(GetInventoryItemLink("player", 13))
+    local t14 = TrinketTier(GetInventoryItemLink("player", 14))
+    local rTier, rIlvl = t13, i13
+    if t14 < t13 or (t14 == t13 and i14 < i13) then rTier, rIlvl = t14, i14 end
+    if bagTier > rTier then return true, 100 * (bagTier - rTier) end
+    if bagTier == rTier and bagIlvl > rIlvl then return true, ((bagIlvl - rIlvl) / rIlvl) * 100 end
+    return false, 0
+end
+
 function VB:IsUpgrade(bag, slot, itemLink)
     if not itemLink then return false, 0 end
 
@@ -169,19 +262,22 @@ function VB:IsUpgrade(bag, slot, itemLink)
        and not VB:CanWearArmorSubclass(subclassID) then
         return false, 0
     end
+    if equipLoc0 == "INVTYPE_SHIELD" then
+        local _, class = UnitClass("player")
+        if not SHIELD_CLASSES[class] then return false, 0 end
+    end
+    -- Wrong weapon type / primary stat / role-only items for this spec.
+    if not SpecCanUse(itemLink) then return false, 0 end
 
-    local equipSlot = select(4, C_Item.GetItemInfoInstant(itemLink))
+    local equipSlot = equipLoc0
     if not equipSlot or equipSlot == "" or equipSlot == "INVTYPE_NON_EQUIP" or equipSlot == "INVTYPE_BAG" or equipSlot == "INVTYPE_TABARD" or equipSlot == "INVTYPE_BODY" then
         return false, 0
     end
 
-    -- Try VoidGearScore / VoidUI ceiling
-    local ceilingScore = VB:GetGearCeiling(bag, slot)
-    if ceilingScore and ceilingScore > 0 then
-        return true, ceilingScore
-    end
+    -- (The old VoidUI "gear ceiling" shortcut was removed: it returned "upgrade"
+    -- for ANY item it could score, without comparing to what's equipped.)
 
-    -- Fallback: simple ilvl comparison
+    -- Simple ilvl comparison
     local bagIlvl = C_Item.GetCurrentItemLevel(ItemLocation:CreateFromBagAndSlot(bag, slot))
     if not bagIlvl then return false, 0 end
 
@@ -207,16 +303,51 @@ function VB:IsUpgrade(bag, slot, itemLink)
         return C_Item.GetCurrentItemLevel(loc) or 0
     end
 
+    local bagSetID = select(16, C_Item.GetItemInfo(itemLink))
     local equippedIlvl = 0
+    if equipSlot == "INVTYPE_TRINKET" then
+        -- Trinkets are worth their effect, not their item level.
+        return TrinketUpgrade(itemLink, bagIlvl, equippedSlotIlvl)
+    end
+    local replaceSlot = slotID
     if equipSlot == "INVTYPE_FINGER" then
-        equippedIlvl = math.min(equippedSlotIlvl(11), equippedSlotIlvl(12))
-    elseif equipSlot == "INVTYPE_TRINKET" then
-        equippedIlvl = math.min(equippedSlotIlvl(13), equippedSlotIlvl(14))
+        -- Paired slots: compare against the weaker ring (that's what you'd replace) --
+        -- weaker by stat score when VoidGear can score both, else by ilvl.
+        local s11 = GearScore(GetInventoryItemLink("player", 11))
+        local s12 = GearScore(GetInventoryItemLink("player", 12))
+        if s11 and s12 then
+            replaceSlot = (s11 <= s12) and 11 or 12
+        else
+            replaceSlot = (equippedSlotIlvl(11) <= equippedSlotIlvl(12)) and 11 or 12
+        end
+        if BreaksSetBonus(replaceSlot, bagSetID) then return false, 0 end
+        equippedIlvl = equippedSlotIlvl(replaceSlot)
     else
+        if slotID == 17 then
+            -- Off-hand / shield while wielding a two-hander: slot 17 reads empty,
+            -- which used to flag every off-hand as a +100% "upgrade". Compare
+            -- against the two-hander instead (you'd have to drop it to use one).
+            local mh = GetInventoryItemLink("player", 16)
+            local mhLoc = mh and select(4, C_Item.GetItemInfoInstant(mh))
+            if mhLoc == "INVTYPE_2HWEAPON" or mhLoc == "INVTYPE_RANGED" or mhLoc == "INVTYPE_RANGEDRIGHT" then
+                return false, 0
+            end
+        end
+        if BreaksSetBonus(slotID, bagSetID) then return false, 0 end
         equippedIlvl = equippedSlotIlvl(slotID)
     end
 
     if equippedIlvl == 0 then return true, 100 end
+
+    -- With VoidGear: compare by your spec's stat-weighted score, so a higher-ilvl
+    -- piece full of your worst secondary doesn't beat a lower one full of your best.
+    local bagScore = GearScore(itemLink)
+    local eqScore = GearScore(GetInventoryItemLink("player", replaceSlot))
+    if bagScore and eqScore then
+        local pct = ((bagScore - eqScore) / eqScore) * 100
+        return pct > 0, pct
+    end
+
     local pctChange = ((bagIlvl - equippedIlvl) / equippedIlvl) * 100
     return pctChange > 0, pctChange
 end

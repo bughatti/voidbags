@@ -2,10 +2,10 @@
 ## Title: |cff00c7ffVoidBags|r
 ## Notes: Smart bag organizer with auto-categorization, item markers, and cross-character tracking Discord: https://discord.gg/7ZHmx7zMDh
 ## Author: Vede
-## Version: 1.2.11
+## Version: 1.2.12
 ## SavedVariables: VoidBagsDB
 ## SavedVariablesPerCharacter: VoidBagsCharDB, VoidHubCharDB
-## OptionalDeps: VoidUI, VoidGearScore
+## OptionalDeps: VoidUI, VoidGearScore, VoidGear
 ## IconTexture: Interface\Icons\INV_Misc_Bag_07
 
 # Embedded VoidLib (1.1.2 — was a separate dependency, now bundled so
