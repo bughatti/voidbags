@@ -192,14 +192,13 @@ local function CreateItemButton(parent, bag, slot)
         C_Container.SplitContainerItem(self.bag, self.slot, amount)
     end
 
-    -- Protection toggle moved to /vb protect command (overlay caused scroll wheel issues)
-
     -- Click semantics:
     --   Left-click             = pick up / place        (Lua)
     --   Right-click            = USE item               (SECURE macro — required
     --                                                    for equipment, can't be
     --                                                    done from Lua without
     --                                                    AddOnActionBlocked)
+    --   Alt+Right-click        = toggle protection (P)  (Lua, secure cleared)
     --   Ctrl+Right-click       = split stack            (Lua, secure cleared)
     --   Shift+Right-click      = dress-up preview       (Lua, secure cleared)
     --   Ctrl+Left-click        = item compare           (Lua via HandleModifiedItemClick)
@@ -232,6 +231,12 @@ local function CreateItemButton(parent, bag, slot)
         if not info then return end  -- empty slot
 
         if button == "RightButton" then
+            -- Alt+Right = toggle protection (P). alt-type2 is cleared above, so
+            -- the secure /use macro doesn't also fire.
+            if IsAltKeyDown() then
+                VB:ToggleProtect(info.itemID)
+                return
+            end
             -- Shift+Right = dress-up preview
             if IsShiftKeyDown() then
                 local link = C_Container.GetContainerItemLink(self.bag, self.slot)
@@ -842,6 +847,54 @@ local function ShowCrossCharSearch(searchText)
 end
 
 ----------------------------------------------------------------------
+-- Salvage buttons (title bar): item-targeting profession/class spells.
+-- Shown only for the ones this character knows.
+----------------------------------------------------------------------
+VB.SALVAGE_SPELLS = {
+    { id = 13262, name = "Disenchant",  how = "Click, then click an item in your bags to disenchant it." },
+    { id = 51005, name = "Milling",     how = "Click, then click a stack of herbs to mill it into pigments." },
+    { id = 31252, name = "Prospecting", how = "Click, then click a stack of ore to prospect it for gems." },
+    { id = 1804,  name = "Pick Lock",   how = "Click, then click a lockbox to open it." },
+}
+
+local salvagePending = false
+function VB:UpdateSalvageButtons()
+    if not self.salvageBtns then return end
+    if InCombatLockdown() then salvagePending = true; return end   -- secure frames: no show/move in combat
+    salvagePending = false
+    -- Secure (protected) frames can't anchor to a FontString ("Cannot anchor protected
+    -- frames to regions") -- so the first icon anchors to the title BAR, offset past the
+    -- title text's width; the rest chain off the previous button (a frame, allowed).
+    local prev
+    for _, b in ipairs(self.salvageBtns) do
+        if IsPlayerSpell(b.spellID) then
+            b:ClearAllPoints()
+            if prev then
+                b:SetPoint("LEFT", prev, "RIGHT", 4, 0)
+            else
+                local tw = self.salvageTitle and self.salvageTitle:GetStringWidth() or 60
+                b:SetPoint("LEFT", self.salvageBar, "LEFT", 8 + tw + 8, 0)
+            end
+            b:Show()
+            prev = b
+        else
+            b:Hide()
+        end
+    end
+end
+
+do
+    local ev = CreateFrame("Frame")
+    for _, e in ipairs({ "PLAYER_LOGIN", "SPELLS_CHANGED", "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED" }) do
+        ev:RegisterEvent(e)
+    end
+    ev:SetScript("OnEvent", function(_, e)
+        if e == "PLAYER_REGEN_ENABLED" and not salvagePending then return end
+        VB:UpdateSalvageButtons()
+    end)
+end
+
+----------------------------------------------------------------------
 -- Create the main bag frame
 ----------------------------------------------------------------------
 local function CreateBagFrame()
@@ -1011,6 +1064,40 @@ local function CreateBagFrame()
     end)
     guildBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     guildBtn:SetScript("OnClick", function() if VB.ToggleGuildBank then VB:ToggleGuildBank() end end)
+
+    -- Salvage/profession buttons beside the title: one icon per item-targeting spell this
+    -- character KNOWS (Disenchant, Milling, Prospecting, Pick Lock). Click it, then click the
+    -- item in the bags -- same as casting the spell from the spellbook. Casting is a protected
+    -- action, so these are SecureActionButtons (type=spell); show/hide/re-layout only out of
+    -- combat (VB:UpdateSalvageButtons).
+    VB.salvageTitle = title
+    VB.salvageBar = titleBar
+    VB.salvageBtns = {}
+    for i, s in ipairs(VB.SALVAGE_SPELLS) do
+        local b = CreateFrame("Button", "VoidBagsSalvage" .. i, titleBar, "SecureActionButtonTemplate")
+        b:SetSize(18, 18)
+        b:RegisterForClicks("AnyUp", "AnyDown")
+        b:SetAttribute("useOnKeyDown", false)   -- act on release even with cast-on-key-down on
+        b:SetAttribute("type", "spell")
+        b:SetAttribute("spell", s.id)
+        local icon = b:CreateTexture(nil, "ARTWORK")
+        icon:SetAllPoints()
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        icon:SetTexture((C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(s.id)) or 134400)
+        b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+        b:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:SetText((C_Spell.GetSpellName and C_Spell.GetSpellName(s.id)) or s.name, 0, 0.78, 1)
+            GameTooltip:AddLine(s.how, 0.9, 0.9, 0.9, true)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        b.spellID = s.id
+        b:Hide()
+        VB.salvageBtns[i] = b
+    end
+    -- never let a salvage-button problem take down the rest of the bag frame
+    pcall(VB.UpdateSalvageButtons, VB)
 
     -- Search box
     searchBox = CreateFrame("EditBox", "VoidBagsSearch", f, "SearchBoxTemplate")
@@ -1615,6 +1702,22 @@ local function DebouncedRefresh()
             LayoutBags()
         end
     end)
+end
+
+-- Toggle "protected" (P) on an item: never marked T/Junk, never auto-sold.
+-- Shared by Alt+Right-click on a bag slot and /vb protect.
+function VB:ToggleProtect(itemID)
+    if not itemID then return end
+    VoidBagsDB.protected = VoidBagsDB.protected or {}
+    local name = C_Item.GetItemNameByID(itemID) or "item"
+    if VoidBagsDB.protected[itemID] then
+        VoidBagsDB.protected[itemID] = nil
+        print(VB.C_CYAN .. "[VoidBags]|r Unprotected: " .. name)
+    else
+        VoidBagsDB.protected[itemID] = true
+        print(VB.C_CYAN .. "[VoidBags]|r Protected: " .. name .. " — will never be marked T or auto-sold.")
+    end
+    if isOpen then DebouncedRefresh() end
 end
 
 ----------------------------------------------------------------------
@@ -2242,19 +2345,7 @@ SlashCmdList["VOIDBAGS"] = function(msg)
         local _, itemLink = GameTooltip:GetItem()
         if itemLink then
             local itemID = C_Item.GetItemInfoInstant(itemLink)
-            if itemID then
-                VoidBagsDB.protected = VoidBagsDB.protected or {}
-                if VoidBagsDB.protected[itemID] then
-                    VoidBagsDB.protected[itemID] = nil
-                    local name = C_Item.GetItemNameByID(itemID) or "item"
-                    print(VB.C_CYAN .. "[VoidBags]|r Unprotected: " .. name)
-                else
-                    VoidBagsDB.protected[itemID] = true
-                    local name = C_Item.GetItemNameByID(itemID) or "item"
-                    print(VB.C_CYAN .. "[VoidBags]|r Protected: " .. name .. " — will never be marked T or auto-sold.")
-                end
-                if isOpen then DebouncedRefresh() end
-            end
+            if itemID then VB:ToggleProtect(itemID) end
         else
             -- Nothing hovered: list what's protected (README: "/vb protect — List protected items").
             -- Item names come from the client cache; ask the server for any missing ones

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.13] — 2026-10-17
+
+### Added
+- **Disenchant / Milling / Prospecting / Pick Lock buttons** next to the VoidBags title — shown only for the ones your character knows. Click the button, then click the item.
+- **Alt+Right-click an item in your bags to protect it** (the green **P**) — protected items are never marked as junk or sold. Alt+Right-click again to unprotect. (Previously bags needed the `/vb protect` command; the bank already uses middle-click.)
+
 ## [1.2.12] — 2026-10-16
 
 ### Fixed
