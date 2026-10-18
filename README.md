@@ -14,12 +14,13 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 - **Free slots and your gold** shown in the header
 - **Bag swapping** — drag a bag onto the bag bar to equip it, drag it out to remove it
 - **Settings** behind the gear icon in the title bar
+- **Disenchant, Milling, Prospecting and Pick Lock buttons** next to the title — only the ones your character knows. Click the button, then the item
 
 ### 17 automatic categories
 Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food & Drink** · Consumables · Quest Items · Keys · **Alchemy Mats** · **Cooking Mats** · **Jewelcrafting Mats** · Other Profession Mats · Craftable · Sell / Other Mats · Junk · Miscellaneous
 
 ### Item markers at a glance
-- **Item level** on gear and a **green upgrade arrow** on real upgrades — only armor your class can wear
+- **Item level** on gear and a **green upgrade arrow** on real upgrades — only gear your spec can use, never an off-hand while you hold a two-hander, never a swap that breaks your tier set bonus
 - Letter markers: **L** learnable · **C** a material for your professions · **A** an alt's profession needs it · **$** worth selling on the AH · **T** vendor trash · **P** protected
 - **Auction value** shown on items worth selling
 
