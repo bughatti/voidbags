@@ -26,7 +26,7 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 ### Merchant tools
 - **Auto-sell junk** when you open a vendor, plus AH-trash reagents below your price threshold
 - **Auto-repair**, optionally using guild-bank funds
-- **Protected items** — hover an item and type `/vb protect`; VoidBags will never sell it
+- **Protected items** — **Alt+Right-click** an item in your bags (middle-click in the bank) to protect it; VoidBags will never mark it as junk or sell it
 
 ### Bank and Warband bank
 - A **companion bank panel** with the same categories
