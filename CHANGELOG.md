@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.14] — 2026-10-19
+
+### Added
+- **Currencies next to your gold.**
+  - Restored Coffer Keys and Coffer Key Shards are always shown, with this week's shard progress.
+  - This season's upgrade **crests** are shown too. They're detected automatically each season, so old-season crests don't appear.
+  - Anything you've set to "Show on Backpack" in the Currency tab is included.
+  - Hover for the full list, including how much of each crest's season cap you've earned.
+
 ## [1.2.13] — 2026-10-17
 
 ### Added
