@@ -82,6 +82,111 @@ local isOpen = false
 local refreshTimer
 local layoutDirty = true
 local pendingRefresh = false  -- hoisted: referenced by OpenBags/CloseBags + LayoutBags
+local currencyText, currencyHover
+
+----------------------------------------------------------------------
+-- Currency strip (left of gold): Coffer Keys + Shards, this season's
+-- upgrade crests, then anything marked "Show on Backpack".
+-- Found by NAME once (no hardcoded id to go stale each season).
+-- Crests: each season is a new family ("Dawncrest" S1, "Mistcrest" S2 --
+-- lowercase "crest", one word). Old families are NOT flagged isTypeUnused,
+-- so take the family with the highest currency id (= newest season).
+-- Probed in game 2026-10-19: Mistcrest 3442-3445 carry the season cap;
+-- 3439/3440 are same-named leftovers with no cap -> dedupe by name,
+-- preferring the capped one.
+----------------------------------------------------------------------
+local PINNED_CURRENCY_NAMES = { "Restored Coffer Key", "Coffer Key Shards" }
+local CREST_TIER_ORDER = { Adventurer = 1, Veteran = 2, Champion = 3, Hero = 4, Myth = 5 }
+local pinnedCurrencyIDs
+local crestIDs = {}
+
+local function FindPinnedCurrencies()
+    if pinnedCurrencyIDs then return pinnedCurrencyIDs end
+    pinnedCurrencyIDs = {}
+    if not (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo) then return pinnedCurrencyIDs end
+    local want, found = {}, {}
+    for i, n in ipairs(PINNED_CURRENCY_NAMES) do want[n] = i end
+    local crests, newestFamily, newestID = {}, nil, 0
+    for id = 2800, 6000 do
+        local ok, c = pcall(C_CurrencyInfo.GetCurrencyInfo, id)
+        if ok and c and c.name and c.name ~= "" then
+            if want[c.name] and not found[want[c.name]] then
+                found[want[c.name]] = id
+            else
+                local tier, family = c.name:match("^(%a+) (%a*[Cc]rest)$")
+                if tier and CREST_TIER_ORDER[tier] and c.discovered then
+                    crests[#crests + 1] = { id = id, name = c.name, tier = tier, family = family,
+                                            capped = (c.maxQuantity or 0) > 0 }
+                    if id > newestID then newestID, newestFamily = id, family end
+                end
+            end
+        end
+    end
+    -- Newest family only, one currency per name (capped one wins, then higher id).
+    local byName = {}
+    for _, cr in ipairs(crests) do
+        if cr.family == newestFamily then
+            local cur = byName[cr.name]
+            if not cur or (cr.capped and not cur.capped) or (cr.capped == cur.capped and cr.id > cur.id) then
+                byName[cr.name] = cr
+            end
+        end
+    end
+    local picked = {}
+    for _, cr in pairs(byName) do picked[#picked + 1] = cr end
+    table.sort(picked, function(a, b) return CREST_TIER_ORDER[a.tier] < CREST_TIER_ORDER[b.tier] end)
+
+    for i = 1, #PINNED_CURRENCY_NAMES do
+        if found[i] then pinnedCurrencyIDs[#pinnedCurrencyIDs + 1] = found[i] end
+    end
+    for _, cr in ipairs(picked) do
+        crestIDs[cr.id] = true
+        pinnedCurrencyIDs[#pinnedCurrencyIDs + 1] = cr.id
+    end
+    return pinnedCurrencyIDs
+end
+
+-- Returns a list of CurrencyInfo tables (+ .id) to show, pinned first.
+local function GatherCurrencies()
+    local list, seen = {}, {}
+    local function add(id)
+        if not id or seen[id] then return end
+        local ok, c = pcall(C_CurrencyInfo.GetCurrencyInfo, id)
+        if ok and c and c.name then
+            seen[id] = true
+            c.id = id
+            list[#list + 1] = c
+        end
+    end
+    for _, id in ipairs(FindPinnedCurrencies()) do add(id) end
+    if C_CurrencyInfo and C_CurrencyInfo.GetBackpackCurrencyInfo then
+        for i = 1, 10 do
+            local ok, b = pcall(C_CurrencyInfo.GetBackpackCurrencyInfo, i)
+            if not ok or not b then break end
+            add(b.currencyTypesID)
+        end
+    end
+    return list
+end
+
+local function UpdateCurrencyText()
+    if not currencyText then return end
+    local parts = {}
+    for _, c in ipairs(GatherCurrencies()) do
+        -- Crests you hold none of stay off the bar (still listed in the tooltip).
+        if not (crestIDs[c.id] and (c.quantity or 0) == 0) then
+            local s = ("|T%d:12:12:0:0|t %d"):format(c.iconFileID or 134400, c.quantity or 0)
+            if (c.maxWeeklyQuantity or 0) > 0 then
+                s = s .. VB.C_DIM .. (" (%d/%d wk)"):format(c.quantityEarnedThisWeek or 0, c.maxWeeklyQuantity) .. "|r"
+            end
+            parts[#parts + 1] = s
+        end
+    end
+    currencyText:SetText(table.concat(parts, "   "))
+    if currencyHover then
+        currencyHover:SetWidth(math.max(math.min(currencyText:GetStringWidth(), currencyText:GetWidth()), 1))
+    end
+end
 
 ----------------------------------------------------------------------
 -- Create item button
@@ -657,6 +762,7 @@ local function LayoutBags()
     if goldText then
         goldText:SetText(VB:FormatMoney(GetMoney()))
     end
+    UpdateCurrencyText()
 
     layoutDirty = false
 end
@@ -1137,6 +1243,38 @@ local function CreateBagFrame()
     slotText = f:CreateFontString(nil, "OVERLAY")
     VB:SetFont(slotText, 11, "")
     slotText:SetPoint("BOTTOMLEFT", 8, 8)
+
+    -- Currencies sit just left of the gold; hover for names + weekly caps.
+    currencyText = f:CreateFontString(nil, "OVERLAY")
+    VB:SetFont(currencyText, 11, "")
+    currencyText:SetPoint("RIGHT", goldText, "LEFT", -14, 0)
+    -- Bounded on the left by the slot count so a narrow bag truncates instead of overlapping.
+    currencyText:SetPoint("LEFT", slotText, "RIGHT", 12, 0)
+    currencyText:SetJustifyH("RIGHT")
+    currencyText:SetWordWrap(false)
+    currencyHover = CreateFrame("Frame", nil, f)
+    currencyHover:SetPoint("RIGHT", currencyText, "RIGHT")
+    currencyHover:SetHeight(14)
+    currencyHover:SetWidth(1)
+    currencyHover:EnableMouse(true)
+    currencyHover:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Currencies")
+        for _, c in ipairs(GatherCurrencies()) do
+            local right = tostring(c.quantity or 0)
+            if (c.maxWeeklyQuantity or 0) > 0 then
+                right = right .. ("  (%d/%d this week)"):format(c.quantityEarnedThisWeek or 0, c.maxWeeklyQuantity)
+            elseif c.useTotalEarnedForMaxQty and (c.maxQuantity or 0) > 0 then
+                -- Crests: the cap is season-to-date earned, raised every week.
+                right = right .. ("  (earned %d/%d)"):format(c.totalEarned or 0, c.maxQuantity)
+            end
+            GameTooltip:AddDoubleLine(("|T%d:14:14:0:0|t %s"):format(c.iconFileID or 134400, c.name),
+                right, 1, 1, 1, 1, 1, 1)
+        end
+        GameTooltip:AddLine("Add more: Currency tab > right-click > Show on Backpack", 0.6, 0.6, 0.6, true)
+        GameTooltip:Show()
+    end)
+    currencyHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Bag bar
     if VB:GetConfig("showBagBar") then
@@ -1846,6 +1984,7 @@ ef:RegisterEvent("BAG_UPDATE")
 ef:RegisterEvent("BAG_UPDATE_DELAYED")
 ef:RegisterEvent("ITEM_LOCK_CHANGED")
 ef:RegisterEvent("PLAYER_MONEY")
+ef:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
 ef:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 ef:RegisterEvent("MERCHANT_SHOW")
 ef:RegisterEvent("MERCHANT_CLOSED")
@@ -1977,6 +2116,11 @@ ef:SetScript("OnEvent", function(_, event, arg1)
         if goldText and isOpen then
             goldText:SetText(VB:FormatMoney(GetMoney()))
         end
+        return
+    end
+
+    if event == "CURRENCY_DISPLAY_UPDATE" then
+        if isOpen then UpdateCurrencyText() end
         return
     end
 
