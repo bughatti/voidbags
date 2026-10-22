@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.15] — 2026-10-21
+
+### Fixed
+- **Bags snapping shut on a new character.** Blizzard's new-player tutorial ("Press SHIFT-B to open your bag") kept closing VoidBags right after you opened it, over and over. VoidBags now ignores the tutorial's close requests, and treats its toggle as "open".
+- **Opening or closing your bags in combat** no longer triggers "action blocked" errors (first seen in WoW Forever). The game locks the bag window in combat, so VoidBags now only fades it in or out, then finishes the job when combat ends. If your bags were fully closed when combat started, they open as soon as combat ends.
+
 ## [1.2.14] — 2026-10-19
 
 ### Added

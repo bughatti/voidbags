@@ -1496,6 +1496,11 @@ local function CreateBagFrame()
     f:SetFrameStrata("BACKGROUND")     -- start hidden + out of the way
     block:SetFrameStrata("BACKGROUND")
     block:Show()                       -- start in blocked state
+    -- Trace (opt-in) anything that hides/fades the bag behind VoidBags' back.
+    f:HookScript("OnHide", function() VB:Trace("bagFrame OnHide isOpen=" .. tostring(isOpen)) end)
+    hooksecurefunc(f, "SetAlpha", function(_, a)
+        if a == 0 and isOpen then VB:Trace("bagFrame SetAlpha(0) while isOpen") end
+    end)
     bagFrame = f
     return f
 end
@@ -1518,10 +1523,25 @@ end
 -- swallows clicks meant for the SecureActionButton children below it, but
 -- because the whole stratum is BACKGROUND, any other UI at MEDIUM+ sits
 -- above it and gets clicks first.
+-- In combat, a frame with secure children is itself protected: Show/Hide,
+-- EnableMouse and SetFrameStrata on it are BLOCKED (ADDON_ACTION_BLOCKED,
+-- seen in WoW Forever 2026-10-20). Only SetAlpha and the non-secure mouse
+-- blocker are allowed, so the combat paths use just those and the
+-- PLAYER_REGEN_ENABLED handler finishes the job.
+local function Locked(frame)
+    return InCombatLockdown() and frame:IsProtected()
+end
+
+-- Returns false if the bag can't be shown until combat ends.
 local function VisualShow(frame)
-    if not frame then return end
-    -- Ensure frame is actually shown — VisualHide may have :Hide()'d it
-    -- when out of combat. Safe to :Show() in or out of combat.
+    if not frame then return false end
+    if Locked(frame) then
+        -- Closed out of combat = really :Hide()'n, and :Show() is blocked now.
+        if not frame:IsShown() then return false end
+        frame:SetAlpha(1)
+        if frame._mouseBlocker then frame._mouseBlocker:Hide() end
+        return true
+    end
     if not frame:IsShown() then frame:Show() end
     frame:SetAlpha(1)
     frame:EnableMouse(true)
@@ -1530,6 +1550,7 @@ local function VisualShow(frame)
         frame._mouseBlocker:SetFrameStrata("HIGH")
         frame._mouseBlocker:Hide()
     end
+    return true
 end
 
 -- ESC: Blizzard's CloseAllWindows only counts frames listed in UISpecialFrames
@@ -1542,7 +1563,7 @@ local escProxy = CreateFrame("Frame", "VoidBagsEscProxy", UIParent)
 escProxy:Hide()
 tinsert(UISpecialFrames, "VoidBagsEscProxy")
 escProxy:SetScript("OnHide", function()
-    if isOpen then VB:CloseBags() end
+    if isOpen then VB:Trace("escProxy OnHide"); VB:CloseBags() end
 end)
 
 local function VisualHide(frame)
@@ -1558,12 +1579,15 @@ local function VisualHide(frame)
         if frame._mouseBlocker then frame._mouseBlocker:Hide() end
         return
     end
-    -- IN COMBAT: keep the alpha + blocker pattern (can't :Hide() safely)
+    -- IN COMBAT: alpha + blocker only. The blocker is a plain frame (no secure
+    -- children) so it may be shown here; it stays at the bag's strata so it
+    -- still covers the invisible item buttons. Real hide happens after combat.
     frame:SetAlpha(0)
-    frame:EnableMouse(false)
-    frame:SetFrameStrata("BACKGROUND")
+    if not frame:IsProtected() then
+        frame:EnableMouse(false)
+        frame:SetFrameStrata("BACKGROUND")
+    end
     if frame._mouseBlocker then
-        frame._mouseBlocker:SetFrameStrata("BACKGROUND")
         frame._mouseBlocker:Show()
     end
 end
@@ -1576,7 +1600,13 @@ function VB:OpenBags()
             VB:Print("|cffff5555Bags weren't initialized before combat. Try /vb after combat ends.|r")
             return
         end
-        VisualShow(bagFrame)
+        if not VisualShow(bagFrame) then
+            -- Bag was fully hidden before combat; the game won't let it be
+            -- shown until combat ends. Open it then.
+            VB._openAfterCombat = true
+            VB:Print("Bags will open when combat ends.")
+            return
+        end
         isOpen = true
         escProxy:Show()
         VB._pendingClose = nil
@@ -1600,7 +1630,19 @@ function VB:OpenBags()
         bagFrame and tostring(bagFrame:IsShown()) or "nil")
 end
 
+-- Opt-in trace of WHO opens/closes the bag (with call stack), saved to
+-- VoidBagsDB.trace for reading after /reload. Off unless VoidBagsDB.trace is a
+-- table: /run VoidBagsDB.trace={}   Kept small (last 40 entries).
+function VB:Trace(tag)
+    local t = VoidBagsDB and VoidBagsDB.trace
+    if type(t) ~= "table" then return end
+    local ok, s = pcall(debugstack, 3, 14, 0)
+    t[#t + 1] = ("%.2f %s\n%s"):format(GetTime(), tag, ok and s or "?")
+    while #t > 40 do table.remove(t, 1) end
+end
+
 function VB:CloseBags()
+    VB:Trace("CloseBags isOpen=" .. tostring(isOpen))
     dbg("CloseBags ENTER incombat=%s isOpen=%s",
         tostring(InCombatLockdown()), tostring(isOpen))
     VisualHide(bagFrame)
@@ -1617,6 +1659,19 @@ do
     local f = CreateFrame("Frame")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:SetScript("OnEvent", function()
+        -- Finish what combat wouldn't allow: proper strata/mouse when open,
+        -- a real :Hide() when closed, or an open that was asked for in combat.
+        if bagFrame then
+            if VB._openAfterCombat and not isOpen then
+                VB._openAfterCombat = nil
+                VB:OpenBags()
+            elseif isOpen then
+                VisualShow(bagFrame)
+            else
+                VisualHide(bagFrame)
+            end
+        end
+        VB._openAfterCombat = nil
         if pendingRefresh and isOpen and bagFrame then
             pendingRefresh = false
             layoutDirty = true
@@ -2025,6 +2080,7 @@ ef:SetScript("OnEvent", function(_, event, arg1)
             end
         end
         local function scheduleOp(op, src)
+            VB:Trace("hook " .. tostring(src) .. " -> " .. op .. " (pending=" .. tostring(pendingOp) .. ")")
             dbg("hook %s -> queue %s (was=%s)", tostring(src), op, tostring(pendingOp))
             -- Precedence, NOT recency. Pressing B / clicking the bag button fires a
             -- "toggle", and Blizzard's ToggleBackpack/ToggleAllBags then internally
@@ -2041,18 +2097,41 @@ ef:SetScript("OnEvent", function(_, event, arg1)
             end
         end
 
-        hooksecurefunc("ToggleAllBags",  function() scheduleOp("toggle", "ToggleAllBags")  end)
+        -- Blizzard's new-player bag tutorial (Blizzard_Tutorials/BagTutorialUtil:
+        -- "Press SHIFT-B to open your bag") checks whether BLIZZARD's bag frames are
+        -- all open -- VoidBags keeps those hidden, so it decides "not all open" and
+        -- calls ToggleAllBags() itself, which toggled VoidBags straight back shut,
+        -- over and over (WoW Forever, 2026-10-20). The NPE "Change Equipment"
+        -- tutorial (Blizzard_NewPlayerExperience) does worse: whenever a Blizzard
+        -- bag frame "closes" (VoidBags hiding it) it resets via CloseAllBags().
+        -- So: a toggle from tutorial code means "open", and a close from tutorial
+        -- code is ignored. (Both call through TutorialHelper -- "Tutorial" is in
+        -- every one of those file paths.)
+        local function fromTutorial()
+            local ok, s = pcall(debugstack, 2, 12, 0)
+            return ok and type(s) == "string" and s:find("Tutorial", 1, true) ~= nil
+        end
+        local function toggleOp(src)
+            if fromTutorial() then scheduleOp("open", src .. "(tutorial)")
+            else scheduleOp("toggle", src) end
+        end
+        local function closeOp(src)
+            if fromTutorial() then VB:Trace("IGNORED " .. src .. " (tutorial)") return end
+            scheduleOp("close", src)
+        end
+
+        hooksecurefunc("ToggleAllBags",  function() toggleOp("ToggleAllBags") end)
         hooksecurefunc("OpenAllBags",    function() scheduleOp("open",   "OpenAllBags")    end)
-        hooksecurefunc("CloseAllBags",   function() scheduleOp("close",  "CloseAllBags")   end)
-        if ToggleBackpack then hooksecurefunc("ToggleBackpack", function() scheduleOp("toggle", "ToggleBackpack") end) end
+        hooksecurefunc("CloseAllBags",   function() closeOp("CloseAllBags") end)
+        if ToggleBackpack then hooksecurefunc("ToggleBackpack", function() toggleOp("ToggleBackpack") end) end
         if OpenBackpack   then hooksecurefunc("OpenBackpack",   function() scheduleOp("open",   "OpenBackpack")   end) end
-        if CloseBackpack  then hooksecurefunc("CloseBackpack",  function() scheduleOp("close",  "CloseBackpack")  end) end
+        if CloseBackpack  then hooksecurefunc("CloseBackpack",  function() closeOp("CloseBackpack") end) end
         -- Normal-clicking ANY bag slot (backpack, held bags, AND the reagent bag)
         -- calls ToggleBag(id) — NOT ToggleAllBags (that's the Shift-click path).
         -- Held bags then internally hit OpenBackpack (our "open" hook) so they only
         -- ever opened; the reagent bag hits no hooked function so it never opened.
         -- Routing ToggleBag through "toggle" makes every bag slot toggle VoidBags.
-        if ToggleBag then hooksecurefunc("ToggleBag", function() scheduleOp("toggle", "ToggleBag") end) end
+        if ToggleBag then hooksecurefunc("ToggleBag", function() toggleOp("ToggleBag") end) end
 
         -- Hide Blizzard bags — combat-safe.
         -- In combat we can only touch unprotected attrs (alpha, mouse).
