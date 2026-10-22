@@ -1003,6 +1003,27 @@ end
 ----------------------------------------------------------------------
 -- Create the main bag frame
 ----------------------------------------------------------------------
+-- Drop the item on the cursor into the first free slot of bagList, so you can
+-- drop anywhere on a VoidBags window instead of scrolling to an empty slot.
+-- Tries one free slot per bag: if a bag refuses the item (reagent bag, a
+-- restricted bank tab), the item stays on the cursor and the next bag is tried.
+function VB:DropCursorItem(bagList)
+    if not CursorHasItem() then return false end
+    for _, bag in ipairs(bagList) do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+            if not C_Container.GetContainerItemInfo(bag, slot) then
+                C_Container.PickupContainerItem(bag, slot)
+                if not CursorHasItem() then return true end
+                break
+            end
+        end
+    end
+    return false
+end
+
+-- Player bags for drops: regular bags first, the reagent bag last.
+local DROP_BAGS = { 0, 1, 2, 3, 4, 5 }
+
 local function CreateBagFrame()
     if bagFrame then return bagFrame end
 
@@ -1021,6 +1042,10 @@ local function CreateBagFrame()
     if f.SetResizeBounds then
         f:SetResizeBounds(300, 300, 900, 900)
     end
+
+    -- Drop anywhere on the bag window (empty space between items included).
+    f:SetScript("OnReceiveDrag", function() VB:DropCursorItem(DROP_BAGS) end)
+    f:SetScript("OnMouseUp", function() VB:DropCursorItem(DROP_BAGS) end)
 
     -- Restore position
     if VoidBagsDB and VoidBagsDB.config and VoidBagsDB.config.position then

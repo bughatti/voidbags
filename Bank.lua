@@ -604,6 +604,14 @@ local function CreateBankFrame()
         f:SetResizeBounds(300, 300, 900, 900)
     end
 
+    -- Drop anywhere on the bank window -> first free slot of the open tab
+    -- (Bank or Warband), no scrolling to find an empty slot.
+    local function DropHere()
+        VB:DropCursorItem(f.activeTab == "warband" and WARBAND_BAG_IDS or BANK_BAG_IDS)
+    end
+    f:SetScript("OnReceiveDrag", DropHere)
+    f:SetScript("OnMouseUp", DropHere)
+
     if VoidBagsDB and VoidBagsDB.config and VoidBagsDB.config.bankPosition then
         local pos = VoidBagsDB.config.bankPosition
         f:ClearAllPoints()
@@ -701,9 +709,11 @@ local function CreateBankFrame()
     warbandTabTxt:SetText(VB.C_DIM .. "Warband|r")
     f.warbandTabBtn = warbandTabBtn
 
-    -- Deposit Warband Items button — visible only on Warband tab.
-    -- Calls Blizzard's auto-deposit API which moves any items with the
-    -- "Warband Bound" / "Warband Equipment" flag from bags to warband bank.
+    -- Deposit Warband Gear button — visible only on Warband tab.
+    -- Blizzard's C_Bank.AutoDepositItemsIntoBank moves EVERY warbound item,
+    -- consumables included, eating warband-bank space. We only move warbound
+    -- gear (armor/weapons in the Warband category), one item at a time like
+    -- the T -> Bags button.
     local depositBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
     depositBtn:SetSize(100, 18)
     depositBtn:SetPoint("RIGHT", warbandTabBtn, "LEFT", -4, 0)
@@ -714,22 +724,53 @@ local function CreateBankFrame()
     depositTxt:SetText(VB.C_GREEN .. "Deposit Warband|r")
     depositBtn:SetScript("OnClick", function()
         local bankType = (Enum and Enum.BankType and Enum.BankType.Account) or 2
-        local ok, err = pcall(function()
-            if C_Bank and C_Bank.AutoDepositItemsIntoBank then
-                C_Bank.AutoDepositItemsIntoBank(bankType)
+        local toMove = {}
+        for bag = 0, NUM_BAG_SLOTS or 4 do
+            for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+                local info = C_Container.GetContainerItemInfo(bag, slot)
+                if info and info.itemID and not info.isLocked then
+                    local classID = select(6, C_Item.GetItemInfoInstant(info.itemID))
+                    local isGear = classID == Enum.ItemClass.Armor or classID == Enum.ItemClass.Weapon
+                    if isGear then
+                        local ok, cat = pcall(VB.CategorizeItem, VB, bag, slot)
+                        local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+                        local allowed = not C_Bank.IsItemAllowedInBankType
+                            or C_Bank.IsItemAllowedInBankType(bankType, loc)
+                        if ok and cat == "Warband" and allowed then
+                            toMove[#toMove + 1] = { bag = bag, slot = slot }
+                        end
+                    end
+                end
             end
-        end)
-        if ok then
-            print(VB.C_CYAN .. "[VoidBags]|r Warband-tagged items deposited.")
-        else
-            print(VB.C_RED .. "[VoidBags]|r Deposit failed: " .. tostring(err) .. "|r")
         end
+
+        if #toMove == 0 then
+            print(VB.C_CYAN .. "[VoidBags]|r No warbound gear in your bags.")
+            return
+        end
+
+        local idx = 0
+        local function MoveNext()
+            idx = idx + 1
+            if idx > #toMove or not bankIsOpen then
+                print(VB.C_CYAN .. "[VoidBags]|r Deposited " .. (idx - 1) .. " warbound gear item"
+                    .. (idx - 1 == 1 and "" or "s") .. " (consumables stay in your bags).")
+                C_Timer.After(0.3, function()
+                    if bankIsOpen then LayoutBank(WARBAND_BAG_IDS) end
+                end)
+                return
+            end
+            local item = toMove[idx]
+            C_Container.UseContainerItem(item.bag, item.slot, nil, bankType)
+            C_Timer.After(0.05, MoveNext)
+        end
+        MoveNext()
     end)
     depositBtn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Deposit Warband Items", 0, 0.78, 1)
-        GameTooltip:AddLine("Moves all Warband-Bound / Warband Equipment items", 0.9, 0.9, 0.9)
-        GameTooltip:AddLine("from your bags into the Warband bank.", 0.9, 0.9, 0.9)
+        GameTooltip:AddLine("Deposit Warband Gear", 0, 0.78, 1)
+        GameTooltip:AddLine("Moves warbound armor and weapons from your bags", 0.9, 0.9, 0.9)
+        GameTooltip:AddLine("into the Warband bank. Consumables stay put.", 0.9, 0.9, 0.9)
         GameTooltip:Show()
     end)
     depositBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)

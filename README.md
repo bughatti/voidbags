@@ -33,7 +33,9 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 ### Bank and Warband bank
 - A **companion bank panel** with the same categories
 - **Right-click** to move items between bags and bank
+- **Drop anywhere** — drag an item onto any empty part of the bags, bank or Warband window and it goes into the first free slot; no scrolling to find one
 - **Full Warband bank support**, including tabs you buy later
+- **Deposit Warband** button moves your warbound gear into the Warband bank and leaves warbound consumables in your bags
 - **Buy Tab button** shows the next tab's cost (opens Blizzard's bank to complete the purchase)
 
 ### Cross-character inventory
