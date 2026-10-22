@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.16] — 2026-10-22
+
+### Added
+- **Drop anywhere.** Drag an item onto any empty part of the bags, bank or Warband bank window and it goes into the first free slot, so you no longer scroll to find one. If a bag won't take the item (the reagent bag, or a bank tab set to certain items), the next one is tried.
+
+### Fixed
+- **Deposit Warband** only moves warbound **gear** now. It used Blizzard's "deposit everything warbound", which also filled the Warband bank with warbound potions, flasks and food. Consumables stay in your bags.
+
 ## [1.2.15] — 2026-10-21
 
 ### Fixed
