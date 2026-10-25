@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.17] — 2026-10-25
+
+### Fixed
+- **Combat.** Opening the bags or bank in combat no longer throws errors. Layout changes wait until combat ends, and in the meantime icons, counts and cooldowns still update in place.
+- **Items that change during combat** no longer keep the old item's markers (trash, protected, upgrade), and an item looted into an empty slot in combat can be right-clicked straight away.
+- **Search box.** The grey "Search" text no longer sits on top of what you type, and the clear (X) button shows (bags and bank).
+- **Search and bag filter** are mutually exclusive: clicking a bag clears the search, and typing a search drops the bag filter. Re-sorting keeps the current search or filter.
+- **Bag bar.** The bottom row of items is no longer partly covered by the bag buttons.
+- **Other characters panel.** It reopens after you close it, follows the search as you type, and long item names stay on one line.
+- **Bank.** It always opens on your character's bank. The Warband tab and its cached items stay current.
+- **Upgrades.** Dual-wielders are compared against their weaker hand, and the transmog check uses the right appearance.
+- **Guild bank.** Withdrawing re-checks the slot first, and the offline view waits for its data.
+- **Commands.** `/vb override` accepts any capitalisation of the category, and `/vb default` really hands the bags back to Blizzard.
+- New Crest currencies show without a /reload.
+
 ## [1.2.16] — 2026-10-22
 
 ### Added

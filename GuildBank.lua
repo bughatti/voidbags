@@ -135,6 +135,12 @@ StaticPopupDialogs["VOIDBAGS_GUILD_WITHDRAW"] = {
     button2 = NO,
     OnAccept = function(_, data)
         if data and AutoStoreGuildBankItem then
+            -- Someone may have changed that slot while the dialog was open: only
+            -- withdraw the item that was confirmed.
+            if GetGuildBankItemLink and GetGuildBankItemLink(data.tab, data.slot) ~= data.link then
+                print(VB.C_CYAN .. "[VoidBags]|r That guild bank slot changed -- nothing withdrawn.")
+                return
+            end
             AutoStoreGuildBankItem(data.tab, data.slot)  -- server enforces permission/limits
         end
     end,
@@ -178,7 +184,11 @@ local function CreateSlotButton(parent, slotNum)
     btn:SetScript("OnEnter", function(self)
         if not self.tab or not self.link then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        pcall(GameTooltip.SetGuildBankItem, GameTooltip, self.tab, self.slotNum)
+        if viewingCached then
+            pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)  -- snapshot: no live slot to read
+        else
+            pcall(GameTooltip.SetGuildBankItem, GameTooltip, self.tab, self.slotNum)
+        end
         GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -196,7 +206,7 @@ local function CreateSlotButton(parent, slotNum)
         if button == "RightButton" then
             -- Quick withdraw to bags — confirmed. (No-op on an empty slot.)
             if self.link then
-                StaticPopup_Show("VOIDBAGS_GUILD_WITHDRAW", self.link, nil, { tab = tab, slot = self.slotNum })
+                StaticPopup_Show("VOIDBAGS_GUILD_WITHDRAW", self.link, nil, { tab = tab, slot = self.slotNum, link = self.link })
             end
         else
             -- Left-click: cursor pickup/place. Picking up just moves the item to
@@ -235,7 +245,7 @@ end
 -- Render one tab's contents (read-only). Applies the search filter by
 -- dimming non-matching items so the grid stays stable.
 ----------------------------------------------------------------------
-local function RenderTab(tab)
+local function RenderTab(tab, noSnapshot)
     if not guildFrame then return end
     local grid = guildFrame.grid
     local filter = searchText ~= "" and searchText:lower() or nil
@@ -282,7 +292,7 @@ local function RenderTab(tab)
             ClearSlot(btn)   -- empty cell stays visible
         end
     end
-    if not viewingCached then SnapshotTab(tab) end  -- don't overwrite cache with nothing
+    if not viewingCached and not noSnapshot then SnapshotTab(tab) end  -- don't overwrite cache with nothing
 end
 
 ----------------------------------------------------------------------
@@ -294,7 +304,9 @@ local function SwitchTab(tab)
         if SetCurrentGuildBankTab then pcall(SetCurrentGuildBankTab, tab) end
         if QueryGuildBankTab then pcall(QueryGuildBankTab, tab) end  -- async -> GUILDBANKBAGSLOTS_CHANGED
     end
-    RenderTab(tab)  -- render immediately from whatever is loaded; refresh on the event
+    -- Render immediately from whatever is loaded; the query's GUILDBANKBAGSLOTS_CHANGED
+    -- re-renders and snapshots. No snapshot here: an unloaded tab reads empty.
+    RenderTab(tab, true)
     -- Update tab button highlight
     for t, b in pairs(tabButtons) do
         b.txt:SetText((t == tab and C_CYAN or C_DIM) .. (b.tabName or ("Tab " .. t)) .. "|r")
@@ -421,6 +433,7 @@ local function RenderInfo()
         end
     end
     it:SetText(table.concat(lines, "\n"))
+    it:GetParent():SetHeight(math.max(10, it:GetStringHeight()))  -- scroll range follows the text
 end
 
 -- Repair-spend tracker: aggregate guild-bank money-log "repair" transactions by
@@ -460,6 +473,7 @@ local function RenderRepairs()
         lines[#lines+1] = C_DIM .. "(limited to what the guild bank money log retains)|r"
     end
     it:SetText(table.concat(lines, "\n"))
+    it:GetParent():SetHeight(math.max(10, it:GetStringHeight()))  -- scroll range follows the text
 end
 
 ----------------------------------------------------------------------

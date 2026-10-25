@@ -122,9 +122,10 @@ function VB:IsLearnable(bag, slot, itemID, itemLink)
     if C_TransmogCollection and C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance then
         local itemLoc = ItemLocation:CreateFromBagAndSlot(bag, slot)
         if itemLoc and itemLoc:IsValid() and C_Item.DoesItemExist(itemLoc) then
-            local ok, appearanceID = pcall(C_TransmogCollection.GetItemInfo, itemLink)
-            if ok and appearanceID then
-                local hasAppearance = C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(appearanceID)
+            -- GetItemInfo returns (appearanceID, modifiedAppearanceID); the Has-check takes the 2nd.
+            local ok, _, modAppearanceID = pcall(C_TransmogCollection.GetItemInfo, itemLink)
+            if ok and modAppearanceID then
+                local hasAppearance = C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(modAppearanceID)
                 if not hasAppearance then return true end
             end
         end
@@ -310,6 +311,9 @@ function VB:IsUpgrade(bag, slot, itemLink)
         return TrinketUpgrade(itemLink, bagIlvl, equippedSlotIlvl)
     end
     local replaceSlot = slotID
+    -- A one-hander while dual-wielding can replace either weapon (off hand holds a weapon).
+    local ohLink = (equipSlot == "INVTYPE_WEAPON") and GetInventoryItemLink("player", 17)
+    local ohLoc = ohLink and select(4, C_Item.GetItemInfoInstant(ohLink))
     if equipSlot == "INVTYPE_FINGER" then
         -- Paired slots: compare against the weaker ring (that's what you'd replace) --
         -- weaker by stat score when VoidGear can score both, else by ilvl.
@@ -319,6 +323,17 @@ function VB:IsUpgrade(bag, slot, itemLink)
             replaceSlot = (s11 <= s12) and 11 or 12
         else
             replaceSlot = (equippedSlotIlvl(11) <= equippedSlotIlvl(12)) and 11 or 12
+        end
+        if BreaksSetBonus(replaceSlot, bagSetID) then return false, 0 end
+        equippedIlvl = equippedSlotIlvl(replaceSlot)
+    elseif ohLoc == "INVTYPE_WEAPON" or ohLoc == "INVTYPE_WEAPONOFFHAND" then
+        -- Dual-wielding: compare against the weaker weapon, same rule as rings.
+        local s16 = GearScore(GetInventoryItemLink("player", 16))
+        local s17 = GearScore(ohLink)
+        if s16 and s17 then
+            replaceSlot = (s16 <= s17) and 16 or 17
+        else
+            replaceSlot = (equippedSlotIlvl(16) <= equippedSlotIlvl(17)) and 16 or 17
         end
         if BreaksSetBonus(replaceSlot, bagSetID) then return false, 0 end
         equippedIlvl = equippedSlotIlvl(replaceSlot)
@@ -475,9 +490,9 @@ function VB:CategorizeItem(bag, slot)
             -- Mark whether the appearance is already collected so the bag
             -- can show a "new!" indicator on uncollected drops.
             if C_TransmogCollection and C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance then
-                local ok, appearanceID = pcall(C_TransmogCollection.GetItemInfo, itemLink)
-                if ok and appearanceID then
-                    local hasIt = C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(appearanceID)
+                local ok, _, modAppearanceID = pcall(C_TransmogCollection.GetItemInfo, itemLink)
+                if ok and modAppearanceID then
+                    local hasIt = C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(modAppearanceID)
                     if not hasIt then markers.learnable = true end
                 end
             end
@@ -532,7 +547,7 @@ function VB:CategorizeItem(bag, slot)
             markers.craftable = true
             return "MyProfMats", markers
         else
-            markers.trash = true
+            if not isProtected then markers.trash = true end
             return "SellableReagents", markers
         end
     end
@@ -662,6 +677,8 @@ function VB:SnapshotInventory()
         ilvl = select(2, GetAverageItemLevel()),
         bags = {},
         timestamp = time(),
+        -- Keep the profession list UpdateProfessions stored on this record (alts read it).
+        professions = VoidBagsDB.characters[key] and VoidBagsDB.characters[key].professions,
     }
 
     -- Include reagent bag (slot 5). Iterating 0..4 silently dropped every
