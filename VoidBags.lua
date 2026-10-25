@@ -83,6 +83,8 @@ local refreshTimer
 local layoutDirty = true
 local pendingRefresh = false  -- hoisted: referenced by OpenBags/CloseBags + LayoutBags
 local currencyText, currencyHover
+local activeBagFilter = nil   -- bag-bar filter: bag ID, or nil = show all
+local ApplySearch, ApplyBagFilter  -- defined below LayoutBags (which re-applies them)
 
 ----------------------------------------------------------------------
 -- Currency strip (left of gold): Coffer Keys + Shards, this season's
@@ -144,6 +146,19 @@ local function FindPinnedCurrencies()
         pinnedCurrencyIDs[#pinnedCurrencyIDs + 1] = cr.id
     end
     return pinnedCurrencyIDs
+end
+
+-- Crests only count once discovered, so a crest first earned after the list was
+-- built would stay missing until /reload. CURRENCY_DISPLAY_UPDATE for a crest
+-- that isn't listed yet rebuilds the list on next use.
+local function InvalidateCurrenciesFor(id)
+    if not (pinnedCurrencyIDs and type(id) == "number" and not crestIDs[id]) then return end
+    local ok, c = pcall(C_CurrencyInfo.GetCurrencyInfo, id)
+    local tier = ok and c and c.name and c.name:match("^(%a+) %a*[Cc]rest$")
+    if tier and CREST_TIER_ORDER[tier] then
+        pinnedCurrencyIDs = nil
+        wipe(crestIDs)
+    end
 end
 
 -- Returns a list of CurrencyInfo tables (+ .id) to show, pinned first.
@@ -531,7 +546,7 @@ local function CategorizeAllItems()
             if info then
                 local category, markers = VB:CategorizeItem(bag, slot)
                 category = category or "Misc"
-                categoryCache[bag][slot] = { category = category, markers = markers or {} }
+                categoryCache[bag][slot] = { category = category, markers = markers or {}, itemID = info.itemID }
                 sorted[category][#sorted[category] + 1] = { bag = bag, slot = slot, markers = markers or {} }
             end
         end
@@ -594,6 +609,10 @@ end
 local function LayoutBags()
     dbg("LayoutBags ENTER dirty=%s", tostring(layoutDirty))
     if not bagFrame then return end
+    -- Item buttons are secure: Hide/SetPoint/SetSize on them is blocked in
+    -- combat (e.g. the Sort timer firing just after a pull). Defer to the
+    -- PLAYER_REGEN_ENABLED handlers, which re-run the layout.
+    if InCombatLockdown() then pendingRefresh = true; return end
 
     local columns = VB:GetConfig("columns")
     local iconSize = VB:GetConfig("iconSize")
@@ -638,6 +657,7 @@ local function LayoutBags()
             sf:ClearAllPoints()
             sf:SetPoint("TOPLEFT", contentParent, "TOPLEFT", 0, -yOffset)
             sf.countText:SetText(#items)
+            sf:SetAlpha(1)
             sf:Show()
             yOffset = yOffset + 22
 
@@ -665,6 +685,7 @@ local function LayoutBags()
                 btn:SetPoint("TOPLEFT", contentParent, "TOPLEFT", col * (iconSize + spacing), -(yOffset + row * (iconSize + spacing)))
                 btn:SetSize(iconSize, iconSize)
 
+                btn:SetAlpha(1)  -- reused buttons keep the last search/filter dim; reapplied below
                 UpdateButton(btn, itemData.bag, itemData.slot, itemData.markers)
                 btn:Show()
             end
@@ -708,6 +729,7 @@ local function LayoutBags()
         sf:ClearAllPoints()
         sf:SetPoint("TOPLEFT", contentParent, "TOPLEFT", 0, -yOffset)
         sf.countText:SetText(#emptySlots .. " free")
+        sf:SetAlpha(1)
         sf:Show()
         yOffset = yOffset + 22
 
@@ -723,9 +745,11 @@ local function LayoutBags()
             local btn = btns[i]
             btn.bag = slotData.bag
             btn.slot = slotData.slot
-            -- Empty slot: clear the secure /use macro (nothing to use).
+            -- Empty slot keeps a /use for its own slot (a no-op while empty): an item
+            -- looted into it in combat is drawn by RefreshButtonsInPlace, and the
+            -- attribute can't be set until combat ends, so it must already be right.
             if not InCombatLockdown() then
-                btn:SetAttribute("macrotext2", "")
+                btn:SetAttribute("macrotext2", "/use " .. slotData.bag .. " " .. slotData.slot)
             end
 
             local col = (i - 1) % columns
@@ -735,6 +759,8 @@ local function LayoutBags()
             btn:SetSize(iconSize, iconSize)
 
             ClearButton(btn)
+            btn:SetAlpha(1)
+            btn.icon:SetDesaturated(false)
             btn:Show()
         end
 
@@ -764,13 +790,74 @@ local function LayoutBags()
     end
     UpdateCurrencyText()
 
+    -- Re-apply the active search (or bag filter) to the rebuilt buttons.
+    local searchText = searchBox and searchBox:GetText()
+    if searchText and searchText ~= "" then
+        ApplySearch(searchText)
+    elseif activeBagFilter then
+        ApplyBagFilter(activeBagFilter)
+    end
+
     layoutDirty = false
+end
+
+-- In combat the layout can't move/show secure buttons, but their textures and
+-- text can change: refresh each shown button from its slot's CURRENT contents so a
+-- used/moved stack doesn't keep showing what was there. Full layout after combat.
+local function RefreshButtonsInPlace()
+    for _, btns in pairs(sectionButtons) do
+        for _, btn in ipairs(btns) do
+            if btn:IsShown() and btn.bag and btn.slot then
+                local info = C_Container.GetContainerItemInfo(btn.bag, btn.slot)
+                if info then
+                    local c = categoryCache[btn.bag] and categoryCache[btn.bag][btn.slot]
+                    -- Markers belong to the item that was categorized; a different item now = none.
+                    local markers = c and c.itemID == info.itemID and c.markers or nil
+                    UpdateButton(btn, btn.bag, btn.slot, markers)
+                else
+                    ClearButton(btn)
+                end
+            end
+        end
+    end
+end
+
+-- Cooldown swipes only (BAG_UPDATE_COOLDOWN: a shared item cooldown can start
+-- without any inventory change).
+local function RefreshButtonCooldowns()
+    for _, btns in pairs(sectionButtons) do
+        for _, btn in ipairs(btns) do
+            if btn:IsShown() and btn.hasItem then
+                local start, duration, enable = C_Container.GetContainerItemCooldown(btn.bag, btn.slot)
+                if start and duration and duration > 0 and enable == 1 then
+                    btn.cooldown:SetCooldown(start, duration)
+                    btn.cooldown:Show()
+                else
+                    btn.cooldown:Hide()
+                end
+            end
+        end
+    end
 end
 
 ----------------------------------------------------------------------
 -- Search filter
 ----------------------------------------------------------------------
-local function ApplySearch(text)
+-- Bag-bar filter: dim every item not in `bag` (nil = show all). Buttons live
+-- in per-category lists, so walk all of them.
+ApplyBagFilter = function(bag)
+    for _, btns in pairs(sectionButtons) do
+        for _, btn in ipairs(btns) do
+            if btn:IsShown() then
+                local on = (bag == nil) or (btn.bag == bag)
+                btn:SetAlpha(on and 1 or 0.3)
+                btn.icon:SetDesaturated(not on)
+            end
+        end
+    end
+end
+
+ApplySearch = function(text)
     if not text or text == "" then
         for _, btns in pairs(sectionButtons) do
             for _, btn in ipairs(btns) do
@@ -928,7 +1015,9 @@ local function ShowCrossCharSearch(searchText)
             f.rows[1] = f.scrollParent:CreateFontString(nil, "OVERLAY")
             VB:SetFont(f.rows[1], 10, "")
         end
+        f.rows[1]:ClearAllPoints()
         f.rows[1]:SetPoint("TOPLEFT", 0, 0)
+        f.rows[1]:SetPoint("RIGHT", f.scrollParent, "RIGHT", 0, 0)
         f.rows[1]:SetText(VB.C_DIM .. "No matches on other characters.|r")
         f.rows[1]:Show()
     else
@@ -938,6 +1027,9 @@ local function ShowCrossCharSearch(searchText)
                 f.rows[i] = f.scrollParent:CreateFontString(nil, "OVERLAY")
                 VB:SetFont(f.rows[i], 10, "")
             end
+            -- One line per row: a long item name truncates instead of wrapping onto the next row.
+            f.rows[i]:SetJustifyH("LEFT")
+            f.rows[i]:SetWordWrap(false)
             local classColor = RAID_CLASS_COLORS[r.class]
             local cc = classColor and classColor.colorStr or "ffffffff"
             f.rows[i]:ClearAllPoints()
@@ -949,6 +1041,7 @@ local function ShowCrossCharSearch(searchText)
     end
 
     f:SetHeight(math.max(40, math.min(#results, 15) * 16 + 36))
+    f:SetAlpha(1)  -- CloseBags fades it (VisualHide); Show alone left it invisible
     f:Show()
 end
 
@@ -962,6 +1055,9 @@ VB.SALVAGE_SPELLS = {
     { id = 31252, name = "Prospecting", how = "Click, then click a stack of ore to prospect it for gems." },
     { id = 1804,  name = "Pick Lock",   how = "Click, then click a lockbox to open it." },
 }
+
+-- Global IsPlayerSpell only exists via the deprecation fallbacks (loadDeprecationFallbacks).
+local IsPlayerSpell = (C_SpellBook and C_SpellBook.IsSpellKnown) or IsPlayerSpell
 
 local salvagePending = false
 function VB:UpdateSalvageButtons()
@@ -1064,8 +1160,12 @@ local function CreateBagFrame()
     titleBar:SetPoint("TOPRIGHT", 0, 0)
     titleBar:EnableMouse(true)
     titleBar:RegisterForDrag("LeftButton")
-    titleBar:SetScript("OnDragStart", function() f:StartMoving() end)
+    -- Move/size are protected on a frame with secure children: not in combat.
+    titleBar:SetScript("OnDragStart", function()
+        if not InCombatLockdown() then f:StartMoving() end
+    end)
     titleBar:SetScript("OnDragStop", function()
+        if InCombatLockdown() then return end
         f:StopMovingOrSizing()
         local point, _, relPoint, x, y = f:GetPoint(1)
         VoidBagsDB.config.position = { point = point, relPoint = relPoint, x = x, y = y }
@@ -1236,7 +1336,12 @@ local function CreateBagFrame()
     searchBox:SetPoint("TOPLEFT", 8, -30)
     searchBox:SetAutoFocus(false)
     searchBox:SetScript("OnTextChanged", function(self)
+        -- Template handler first: hides the grey "Search" placeholder, shows the clear X.
+        if SearchBoxTemplate_OnTextChanged then SearchBoxTemplate_OnTextChanged(self) end
         local text = self:GetText()
+        -- Search and the bag-bar filter are mutually exclusive: any search edit
+        -- drops the bag filter (a bag click clears the search first, then sets it).
+        activeBagFilter = nil
         ApplySearch(text)
         if crossCharFrame and crossCharFrame:IsShown() and text ~= "" then
             ShowCrossCharSearch(text)
@@ -1307,8 +1412,10 @@ local function CreateBagFrame()
         bagBar:SetHeight(32)
         bagBar:SetPoint("BOTTOMLEFT", 8, 26)
         bagBar:SetPoint("BOTTOMRIGHT", -8, 26)
+        -- Bar spans 26..58; end the item view above it so its top row isn't covered.
+        scrollFrame:SetPoint("BOTTOMRIGHT", -28, 62)
 
-        local activeBagFilter = nil -- nil = show all
+        activeBagFilter = nil -- nil = show all (file-level: LayoutBags re-applies it)
 
         -- Bag filter dropdown menu
         local filterMenu
@@ -1429,31 +1536,12 @@ local function CreateBagFrame()
                     end
                 else
                     -- Left-click: toggle highlight for this bag
-                    if activeBagFilter == bag then
-                        -- Already filtering this bag, reset
-                        activeBagFilter = nil
-                        local allBtns = sectionButtons["all"] or {}
-                        for _, btn in ipairs(allBtns) do
-                            if btn:IsShown() then
-                                btn:SetAlpha(1)
-                                btn.icon:SetDesaturated(false)
-                            end
-                        end
-                    else
-                        activeBagFilter = bag
-                        local allBtns = sectionButtons["all"] or {}
-                        for _, btn in ipairs(allBtns) do
-                            if btn:IsShown() then
-                                if btn.bag == bag then
-                                    btn:SetAlpha(1)
-                                    btn.icon:SetDesaturated(false)
-                                else
-                                    btn:SetAlpha(0.3)
-                                    btn.icon:SetDesaturated(true)
-                                end
-                            end
-                        end
-                    end
+                    local newFilter = (activeBagFilter ~= bag) and bag or nil  -- same bag again = reset
+                    -- Mutually exclusive with search: clear it first (its OnTextChanged
+                    -- resets the filter, so set the filter after).
+                    if searchBox and (searchBox:GetText() or "") ~= "" then searchBox:SetText("") end
+                    activeBagFilter = newFilter
+                    ApplyBagFilter(activeBagFilter)
                     if filterMenu then filterMenu:Hide() end
                 end
             end)
@@ -1486,9 +1574,10 @@ local function CreateBagFrame()
     resizer:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
     resizer:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
     resizer:SetScript("OnMouseDown", function()
-        f:StartSizing("BOTTOMRIGHT")
+        if not InCombatLockdown() then f:StartSizing("BOTTOMRIGHT") end
     end)
     resizer:SetScript("OnMouseUp", function()
+        if InCombatLockdown() then return end
         f:StopMovingOrSizing()
         VoidBagsDB.config.size = { w = f:GetWidth(), h = f:GetHeight() }
         layoutDirty = true
@@ -1622,14 +1711,14 @@ function VB:OpenBags()
         tostring(InCombatLockdown()), tostring(bagFrame ~= nil), tostring(isOpen))
     if InCombatLockdown() then
         if not bagFrame then
-            VB:Print("|cffff5555Bags weren't initialized before combat. Try /vb after combat ends.|r")
+            print(VB.C_CYAN .. "[VoidBags]|r |cffff5555Bags weren't initialized before combat. Try /vb after combat ends.|r")
             return
         end
         if not VisualShow(bagFrame) then
             -- Bag was fully hidden before combat; the game won't let it be
             -- shown until combat ends. Open it then.
             VB._openAfterCombat = true
-            VB:Print("Bags will open when combat ends.")
+            print(VB.C_CYAN .. "[VoidBags]|r Bags will open when combat ends.")
             return
         end
         isOpen = true
@@ -1906,14 +1995,12 @@ end
 -- and the PLAYER_REGEN_ENABLED handler can all see the same upvalue.
 ----------------------------------------------------------------------
 local function DebouncedRefresh()
-    if InCombatLockdown() then
-        pendingRefresh = true
-        return
-    end
     if refreshTimer then refreshTimer:Cancel() end
     refreshTimer = C_Timer.NewTimer(0.1, function()
         if InCombatLockdown() then
+            -- No re-layout in combat (secure buttons); update contents in place.
             pendingRefresh = true
+            if isOpen then RefreshButtonsInPlace() end
             return
         end
         if isOpen then
@@ -1951,6 +2038,7 @@ end
 -- (auto-loot, bank tab open, merchant suppression races, etc.) because
 -- it's frame-level, not event-driven. OnShow is non-secure so safe to hook.
 local function _hideOnShow(self)
+    if VB._useBlizzardBags then return end   -- /vb default
     self:SetAlpha(0)
     self:EnableMouse(false)
     self:Hide()
@@ -1971,6 +2059,7 @@ local function InstallContainerFrameOnShowHooks()
 end
 
 local function SuppressBlizzardBags()
+    if VB._useBlizzardBags then return end   -- /vb default
     -- Ensure OnShow hooks are installed (newly-created frames get covered)
     InstallContainerFrameOnShowHooks()
     -- Combined frame
@@ -2063,6 +2152,7 @@ ef:RegisterEvent("ADDON_LOADED")
 ef:RegisterEvent("BAG_UPDATE")
 ef:RegisterEvent("BAG_UPDATE_DELAYED")
 ef:RegisterEvent("ITEM_LOCK_CHANGED")
+ef:RegisterEvent("BAG_UPDATE_COOLDOWN")
 ef:RegisterEvent("PLAYER_MONEY")
 ef:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
 ef:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
@@ -2105,6 +2195,7 @@ ef:SetScript("OnEvent", function(_, event, arg1)
             end
         end
         local function scheduleOp(op, src)
+            if VB._useBlizzardBags then return end   -- /vb default: Blizzard's bags handle B
             VB:Trace("hook " .. tostring(src) .. " -> " .. op .. " (pending=" .. tostring(pendingOp) .. ")")
             dbg("hook %s -> queue %s (was=%s)", tostring(src), op, tostring(pendingOp))
             -- Precedence, NOT recency. Pressing B / clicking the bag button fires a
@@ -2174,6 +2265,7 @@ ef:SetScript("OnEvent", function(_, event, arg1)
             end
             if not frame._voidHooked then
                 hooksecurefunc(frame, "Show", function(self)
+                    if VB._useBlizzardBags then return end   -- /vb default
                     -- ALWAYS safe: alpha + mouse-off
                     self:SetAlpha(0)
                     self:EnableMouse(false)
@@ -2216,6 +2308,11 @@ ef:SetScript("OnEvent", function(_, event, arg1)
         return
     end
 
+    if event == "BAG_UPDATE_COOLDOWN" then
+        if isOpen then RefreshButtonCooldowns() end
+        return
+    end
+
     if event == "PLAYER_MONEY" then
         if goldText and isOpen then
             goldText:SetText(VB:FormatMoney(GetMoney()))
@@ -2224,6 +2321,7 @@ ef:SetScript("OnEvent", function(_, event, arg1)
     end
 
     if event == "CURRENCY_DISPLAY_UPDATE" then
+        InvalidateCurrenciesFor(arg1)
         if isOpen then UpdateCurrencyText() end
         return
     end
@@ -2315,6 +2413,10 @@ SlashCmdList["VOIDBAGS"] = function(msg)
     end
 
     if msg == "reset" then
+        if InCombatLockdown() then   -- bagFrame has secure children: no move/resize in combat
+            print(VB.C_CYAN .. "[VoidBags]|r Can't reset during combat.")
+            return
+        end
         VoidBagsDB.config.position = nil
         VoidBagsDB.config.size = nil
         VoidBagsDB.config.bankPosition = nil
@@ -2366,8 +2468,8 @@ SlashCmdList["VOIDBAGS"] = function(msg)
         -- due to taint. /vb default again toggles back to VoidBags.
         VB._useBlizzardBags = not VB._useBlizzardBags
         if VB._useBlizzardBags then
-            -- Hide VoidBags
-            if bagFrame then bagFrame:Hide() end
+            -- Hide VoidBags (combat-safe path; bagFrame has secure children)
+            if bagFrame then VB:CloseBags() end
             -- Restore Blizzard ContainerFrames to normal positions
             for i = 1, 30 do
                 local f = _G["ContainerFrame" .. i]
@@ -2535,6 +2637,10 @@ SlashCmdList["VOIDBAGS"] = function(msg)
             return
         end
         id = tonumber(id)
+        -- msg was lowercased above; map back to the real (case-sensitive) category key.
+        for key in pairs(VB.CATEGORIES) do
+            if key:lower() == cat then cat = key; break end
+        end
         if cat == "clear" or cat == "remove" or cat == "none" then
             VoidBagsDB.itemOverrides[id] = nil
             print(VB.C_CYAN .. "[VoidBags]|r Override cleared for itemID " .. id)
@@ -2547,7 +2653,8 @@ SlashCmdList["VOIDBAGS"] = function(msg)
                 "Equipment, Flasks, Potions, Food, Consumables, AlchemyMats, CookingMats, JewelcraftingMats, MyProfMats, SellableReagents, Junk, Misc")
         end
         -- Force a re-layout so the change reflects immediately
-        if VB.layoutDirty ~= nil then VB.layoutDirty = true end
+        layoutDirty = true
+        if isOpen then DebouncedRefresh() end
         return
     end
 

@@ -13,6 +13,21 @@ local warbandTab
 local bankRefreshTimer
 local blizzBankRevealed = false  -- true only while the player is buying a tab via Blizzard's bank
 local hidingBlizzBank = false    -- reentrancy guard for the BankFrame:SetPoint hook
+-- The bank's item buttons are secure: no layout / Show / Hide of them (or of
+-- bankFrame, their parent) in combat. These defer that work to PLAYER_REGEN_ENABLED.
+local bankLayoutPending = false
+local bankHidePending = false
+local activeBankBagFilter = nil  -- bag-bar filter: bag ID, or nil = show all
+
+-- In-combat close: bankFrame can't be hidden or moved (secure item buttons), so
+-- fade it and show its plain (non-secure) click-swallowing overlay -- the same
+-- pattern as the bag frame's VisualHide -- so the invisible item buttons can't be
+-- clicked. The real Hide happens on PLAYER_REGEN_ENABLED.
+local function CombatCloseBank(f)
+    f:SetAlpha(0)
+    if f._mouseBlocker then f._mouseBlocker:Show() end
+    bankHidePending = true
+end
 
 ----------------------------------------------------------------------
 -- Bank bag IDs (Midnight 12.0)
@@ -409,8 +424,64 @@ local function SetBankScroll(value)
     if scroll.SetVerticalScroll then pcall(scroll.SetVerticalScroll, scroll, value) end
 end
 
+-- Search filter: dim items whose name doesn't match (empty text = show all).
+local function ApplyBankSearch(text)
+    if not text or text == "" then
+        for _, btns in pairs(bankSectionButtons) do
+            for _, btn in ipairs(btns) do
+                if btn:IsShown() then
+                    btn.icon:SetDesaturated(false)
+                    btn:SetAlpha(1)
+                end
+            end
+        end
+        for _, sf in pairs(bankSections) do
+            if sf:IsShown() then sf:SetAlpha(1) end
+        end
+        return
+    end
+    text = text:lower()
+    for catKey, btns in pairs(bankSectionButtons) do
+        local anyMatch = false
+        for _, btn in ipairs(btns) do
+            if btn:IsShown() and btn.hasItem then
+                local link = C_Container.GetContainerItemLink(btn.bag, btn.slot)
+                -- Parse name from link to avoid stricter C_Item.GetItemNameByID
+                -- signature in 12.0.X — also works for Keystones/dynamic items.
+                local name = link and link:match("%[(.-)%]") or ""
+                if name and name:lower():find(text, 1, true) then
+                    btn.icon:SetDesaturated(false)
+                    btn:SetAlpha(1)
+                    anyMatch = true
+                else
+                    btn.icon:SetDesaturated(true)
+                    btn:SetAlpha(0.3)
+                end
+            end
+        end
+        if bankSections[catKey] then
+            bankSections[catKey]:SetAlpha(anyMatch and 1 or 0.3)
+        end
+    end
+end
+
+-- Bag-bar filter: dim every item not in `bag` (nil = show all). Buttons live
+-- in per-category lists, so walk all of them.
+local function ApplyBankBagFilter(bag)
+    for _, btns in pairs(bankSectionButtons) do
+        for _, btn in ipairs(btns) do
+            if btn:IsShown() then
+                local on = (bag == nil) or (btn.bag == bag)
+                btn:SetAlpha(on and 1 or 0.3)
+                btn.icon:SetDesaturated(not on)
+            end
+        end
+    end
+end
+
 LayoutBank = function(bagList)
     if not bankFrame then return end
+    if InCombatLockdown() then bankLayoutPending = true; return end
 
     -- Preserve the player's scroll position across a refresh (clamped to the new
     -- range) so moving an item doesn't fling the view to the bottom or the top.
@@ -461,6 +532,7 @@ LayoutBank = function(bagList)
             sf:ClearAllPoints()
             sf:SetPoint("TOPLEFT", contentParent, "TOPLEFT", 0, -yOffset)
             sf.countText:SetText(#items)
+            sf:SetAlpha(1)
             sf:Show()
             yOffset = yOffset + 22
 
@@ -484,6 +556,7 @@ LayoutBank = function(bagList)
                 btn:SetPoint("TOPLEFT", contentParent, "TOPLEFT", col * (iconSize + spacing), -(yOffset + row * (iconSize + spacing)))
                 btn:SetSize(iconSize, iconSize)
 
+                btn:SetAlpha(1)  -- reused buttons keep the last search/filter dim; reapplied below
                 UpdateBankButton(btn, itemData.bag, itemData.slot, itemData.markers)
                 btn:Show()
             end
@@ -527,6 +600,7 @@ LayoutBank = function(bagList)
         sf:ClearAllPoints()
         sf:SetPoint("TOPLEFT", contentParent, "TOPLEFT", 0, -yOffset)
         sf.countText:SetText(#emptySlots .. " free")
+        sf:SetAlpha(1)
         sf:Show()
         yOffset = yOffset + 22
 
@@ -551,6 +625,8 @@ LayoutBank = function(bagList)
             btn:SetSize(iconSize, iconSize)
 
             ClearBankButton(btn)
+            btn:SetAlpha(1)
+            btn.icon:SetDesaturated(false)
             btn:Show()
         end
 
@@ -563,6 +639,14 @@ LayoutBank = function(bagList)
     end
 
     contentParent:SetHeight(math.max(yOffset, 100))
+
+    -- Re-apply the active search (or bag filter) to the rebuilt buttons.
+    local searchText = bankFrame.searchBox and bankFrame.searchBox:GetText()
+    if searchText and searchText ~= "" then
+        ApplyBankSearch(searchText)
+    elseif activeBankBagFilter then
+        ApplyBankBagFilter(activeBankBagFilter)
+    end
 
     if bankFrame.scroll then
         SetBankScroll(prevScroll)
@@ -625,8 +709,12 @@ local function CreateBankFrame()
     titleBar:SetPoint("TOPRIGHT", 0, 0)
     titleBar:EnableMouse(true)
     titleBar:RegisterForDrag("LeftButton")
-    titleBar:SetScript("OnDragStart", function() f:StartMoving() end)
+    -- Move/size are protected on a frame with secure children: not in combat.
+    titleBar:SetScript("OnDragStart", function()
+        if not InCombatLockdown() then f:StartMoving() end
+    end)
     titleBar:SetScript("OnDragStop", function()
+        if InCombatLockdown() then return end
         f:StopMovingOrSizing()
         local point, _, relPoint, x, y = f:GetPoint(1)
         VoidBagsDB.config.bankPosition = { point = point, relPoint = relPoint, x = x, y = y }
@@ -652,7 +740,11 @@ local function CreateBankFrame()
         elseif BankFrame and BankFrame.CloseBank then
             BankFrame:CloseBank()
         end
-        f:Hide()
+        if InCombatLockdown() and f:IsProtected() then
+            CombatCloseBank(f)   -- real Hide after combat
+        else
+            f:Hide()
+        end
         bankIsOpen = false
     end)
 
@@ -928,6 +1020,16 @@ local function CreateBankFrame()
 
     f.activeTab = "bank"
 
+    -- Title, tab highlight and Deposit-button visibility for f.activeTab
+    -- (used when the bank reopens: it always starts on the character bank).
+    function f.ApplyTabChrome()
+        local wb = f.activeTab == "warband"
+        bankTabTxt:SetText((wb and VB.C_DIM or VB.C_CYAN) .. "Bank|r")
+        warbandTabTxt:SetText((wb and VB.C_CYAN or VB.C_DIM) .. "Warband|r")
+        title:SetText(VB.C_CYAN .. (wb and "VoidBags — Warband Bank|r" or "VoidBags — Bank|r"))
+        f.depositBtn:SetShown(wb)
+    end
+
     bankTabBtn:SetScript("OnClick", function()
         f.activeTab = "bank"
         RefreshBankBagIDs()
@@ -963,44 +1065,12 @@ local function CreateBankFrame()
     bankSearchBox:SetPoint("TOPLEFT", 8, -30)
     bankSearchBox:SetAutoFocus(false)
     bankSearchBox:SetScript("OnTextChanged", function(self)
-        local text = self:GetText()
-        if not text or text == "" then
-            for _, btns in pairs(bankSectionButtons) do
-                for _, btn in ipairs(btns) do
-                    if btn:IsShown() then
-                        btn.icon:SetDesaturated(false)
-                        btn:SetAlpha(1)
-                    end
-                end
-            end
-            for _, sf in pairs(bankSections) do
-                if sf:IsShown() then sf:SetAlpha(1) end
-            end
-            return
-        end
-        text = text:lower()
-        for catKey, btns in pairs(bankSectionButtons) do
-            local anyMatch = false
-            for _, btn in ipairs(btns) do
-                if btn:IsShown() and btn.hasItem then
-                    local link = C_Container.GetContainerItemLink(btn.bag, btn.slot)
-                    -- Parse name from link to avoid stricter C_Item.GetItemNameByID
-                    -- signature in 12.0.X — also works for Keystones/dynamic items.
-                    local name = link and link:match("%[(.-)%]") or ""
-                    if name and name:lower():find(text, 1, true) then
-                        btn.icon:SetDesaturated(false)
-                        btn:SetAlpha(1)
-                        anyMatch = true
-                    else
-                        btn.icon:SetDesaturated(true)
-                        btn:SetAlpha(0.3)
-                    end
-                end
-            end
-            if bankSections[catKey] then
-                bankSections[catKey]:SetAlpha(anyMatch and 1 or 0.3)
-            end
-        end
+        -- Template handler first: hides the grey "Search" placeholder, shows the clear X.
+        if SearchBoxTemplate_OnTextChanged then SearchBoxTemplate_OnTextChanged(self) end
+        -- Search and the bag-bar filter are mutually exclusive: any search edit
+        -- drops the bag filter (a bag click clears the search first, then sets it).
+        activeBankBagFilter = nil
+        ApplyBankSearch(self:GetText())
     end)
     bankSearchBox:SetScript("OnEscapePressed", function(self)
         self:SetText("")
@@ -1027,7 +1097,7 @@ local function CreateBankFrame()
     f.bankBagBar = bankBagBar
     f.bankBagBtns = {}
 
-    local activeBankBagFilter = nil
+    local bagBtnPool = {}  -- reused across rebuilds (frames can't be freed)
 
     local function BuildBagBar(bagList, label)
         -- Hide old buttons
@@ -1037,16 +1107,21 @@ local function CreateBankFrame()
         for i, bag in ipairs(bagList) do
             local numSlots = C_Container.GetContainerNumSlots(bag) or 0
             if numSlots > 0 then
-                local bagBtn = CreateFrame("Button", nil, bankBagBar, "BackdropTemplate")
-                bagBtn:SetSize(30, 30)
-                bagBtn:SetPoint("LEFT", (#f.bankBagBtns) * 34, 0)
-                VB:CreateBackdrop(bagBtn, "section")
+                local n = #f.bankBagBtns + 1
+                local bagBtn = bagBtnPool[n]
+                if not bagBtn then
+                    bagBtn = CreateFrame("Button", nil, bankBagBar, "BackdropTemplate")
+                    bagBtn:SetSize(30, 30)
+                    bagBtn:SetPoint("LEFT", (n - 1) * 34, 0)
+                    VB:CreateBackdrop(bagBtn, "section")
+                    bagBtn.icon = bagBtn:CreateTexture(nil, "ARTWORK")
+                    bagBtn.icon:SetPoint("TOPLEFT", 2, -2)
+                    bagBtn.icon:SetPoint("BOTTOMRIGHT", -2, 2)
+                    bagBtn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                    bagBtnPool[n] = bagBtn
+                end
                 bagBtn._bagID = bag
-
-                local bagIcon = bagBtn:CreateTexture(nil, "ARTWORK")
-                bagIcon:SetPoint("TOPLEFT", 2, -2)
-                bagIcon:SetPoint("BOTTOMRIGHT", -2, 2)
-                bagIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                local bagIcon = bagBtn.icon
 
                 if bag <= 4 then
                     local invID = C_Container.ContainerIDToInventoryID(bag)
@@ -1058,30 +1133,12 @@ local function CreateBankFrame()
 
                 bagBtn:RegisterForClicks("LeftButtonUp")
                 bagBtn:SetScript("OnClick", function()
-                    if activeBankBagFilter == bag then
-                        activeBankBagFilter = nil
-                        local allBtns = bankSectionButtons["all"] or {}
-                        for _, btn in ipairs(allBtns) do
-                            if btn:IsShown() then
-                                btn:SetAlpha(1)
-                                btn.icon:SetDesaturated(false)
-                            end
-                        end
-                    else
-                        activeBankBagFilter = bag
-                        local allBtns = bankSectionButtons["all"] or {}
-                        for _, btn in ipairs(allBtns) do
-                            if btn:IsShown() then
-                                if btn.bag == bag then
-                                    btn:SetAlpha(1)
-                                    btn.icon:SetDesaturated(false)
-                                else
-                                    btn:SetAlpha(0.3)
-                                    btn.icon:SetDesaturated(true)
-                                end
-                            end
-                        end
-                    end
+                    local newFilter = (activeBankBagFilter ~= bag) and bag or nil  -- same bag again = reset
+                    -- Mutually exclusive with search: clear it first (its OnTextChanged
+                    -- resets the filter, so set the filter after).
+                    if (bankSearchBox:GetText() or "") ~= "" then bankSearchBox:SetText("") end
+                    activeBankBagFilter = newFilter
+                    ApplyBankBagFilter(activeBankBagFilter)
                 end)
 
                 bagBtn:SetScript("OnEnter", function(self)
@@ -1110,14 +1167,29 @@ local function CreateBankFrame()
     resizer:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
     resizer:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
     resizer:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-    resizer:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
+    resizer:SetScript("OnMouseDown", function()
+        if not InCombatLockdown() then f:StartSizing("BOTTOMRIGHT") end
+    end)
     resizer:SetScript("OnMouseUp", function()
+        if InCombatLockdown() then return end
         f:StopMovingOrSizing()
         VoidBagsDB.config.bankSize = { w = f:GetWidth(), h = f:GetHeight() }
         if f.activeTab == "bank" then
             LayoutBank(BANK_BAG_IDS)
         end
     end)
+
+    -- Click-swallowing overlay for an in-combat close (see CombatCloseBank). A plain
+    -- Frame with no secure children, so Show/Hide on it is allowed in combat.
+    local block = CreateFrame("Frame", nil, f)
+    block:SetAllPoints(f)
+    block:SetFrameLevel((f:GetFrameLevel() or 1) + 1000)
+    block:EnableMouse(true)
+    block:EnableMouseWheel(true)
+    block:SetScript("OnMouseDown", function() end)  -- swallow clicks
+    block:SetScript("OnMouseWheel", function() end) -- swallow scroll
+    block:Hide()
+    f._mouseBlocker = block
 
     f:Hide()
     bankFrame = f
@@ -1138,7 +1210,13 @@ local function OnBankOpened()
     end
 
     bankFrame.activeTab = "bank"
-    bankFrame:Show()
+    activeBankBagFilter = nil
+    if bankFrame.ApplyTabChrome then bankFrame.ApplyTabChrome() end
+    bankHidePending = false
+    bankFrame:SetAlpha(1)
+    if bankFrame._mouseBlocker then bankFrame._mouseBlocker:Hide() end
+    -- Shown out of combat; a frame with secure children can't be shown in it (regen handler does).
+    if not (InCombatLockdown() and bankFrame:IsProtected()) then bankFrame:Show() end
     bankIsOpen = true
     blizzBankRevealed = false  -- fresh session: keep Blizzard's bank parked until Buy Tab
 
@@ -1146,10 +1224,13 @@ local function OnBankOpened()
     C_Timer.After(0.3, function()
         if bankIsOpen then
             RefreshBankBagIDs()
+            -- The player may have picked the Warband tab during the delay.
+            local wb = bankFrame.activeTab == "warband"
+            local bags = wb and WARBAND_BAG_IDS or BANK_BAG_IDS
             if bankFrame.BuildBagBar then
-                bankFrame.BuildBagBar(BANK_BAG_IDS, "Bank")
+                bankFrame.BuildBagBar(bags, wb and "Warband" or "Bank")
             end
-            LayoutBank(BANK_BAG_IDS)
+            LayoutBank(bags)
             if bankFrame.UpdateBuyTabButton then bankFrame.UpdateBuyTabButton() end
         end
     end)
@@ -1159,7 +1240,13 @@ local function OnBankOpened()
 end
 
 local function OnBankClosed()
-    if bankFrame then bankFrame:Hide() end
+    if bankFrame then
+        if InCombatLockdown() and bankFrame:IsProtected() then
+            CombatCloseBank(bankFrame)   -- real Hide after combat
+        else
+            bankFrame:Hide()
+        end
+    end
     bankIsOpen = false
     blizzBankRevealed = false
 end
@@ -1207,6 +1294,7 @@ pcall(function() bankEf:RegisterEvent("BANK_BAG_SLOT_FLAGS_UPDATED") end)
 pcall(function() bankEf:RegisterEvent("PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED") end)
 bankEf:RegisterEvent("PLAYER_MONEY")
 pcall(function() bankEf:RegisterEvent("BANK_TABS_CHANGED") end)
+bankEf:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 local function RefreshBank()
     if not bankIsOpen or not bankFrame then return end
@@ -1216,11 +1304,29 @@ local function RefreshBank()
             RefreshBankBagIDs()
             LayoutBank(bankFrame.activeTab == "warband" and WARBAND_BAG_IDS or BANK_BAG_IDS)
             if bankFrame.UpdateBuyTabButton then bankFrame.UpdateBuyTabButton() end
+            SnapshotWarbandBank()  -- keep the cross-char snapshot current after deposits/withdrawals
         end
     end)
 end
 
 bankEf:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_REGEN_ENABLED" then
+        -- Finish what combat blocked: the real Hide on close, or Show + layout while open.
+        if bankFrame then
+            if bankIsOpen then
+                if not bankFrame:IsShown() then bankFrame:Show() end
+                if bankLayoutPending then bankLayoutPending = false; RefreshBank() end
+            elseif bankHidePending then
+                bankFrame:Hide()
+                bankFrame:SetAlpha(1)
+                if bankFrame._mouseBlocker then bankFrame._mouseBlocker:Hide() end
+            end
+        end
+        bankHidePending = false
+        bankLayoutPending = false
+        return
+    end
+
     if event == "BANKFRAME_OPENED" then
         OnBankOpened()
         SnapshotWarbandBank()
