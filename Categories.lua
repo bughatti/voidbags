@@ -400,13 +400,21 @@ function VB:CategorizeItem(bag, slot)
     local itemName, _, quality, _, _, _, _, _, equipSlot, _, vendorPrice, _, _, bindType, _, _, isCraftingReagent = C_Item.GetItemInfo(itemLink)
     if not itemName then
         itemName = info.iconFileID and "Loading..." or "Unknown"
+        -- Not cached yet (bags opened right after a loading screen). Ask for it;
+        -- VoidBags.lua re-lays-out on GET_ITEM_INFO_RECEIVED while this is set.
+        VB._itemInfoPending = true
+        if itemID and C_Item.RequestLoadItemDataByID then
+            pcall(C_Item.RequestLoadItemDataByID, itemID)
+        end
     end
 
     local classID = classIDNum or 0
     local subClassID = subClassIDNum or 0
     local subClassName = itemSubType or ""
     equipSlot = equipSlot or itemEquipLoc or ""
-    quality = quality or info.quality or 0
+    -- No "or 0": an item whose data hasn't loaded has NO quality yet, and 0 (grey)
+    -- dumped every uncached potion/flask/mat into Junk on the first open.
+    quality = quality or info.quality
 
     -- Markers
     local markers = {}

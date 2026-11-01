@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.19] — 2026-11-01
+
+### Fixed
+- **Items under Junk after a loading screen.** Opening your bags right after zoning could list potions, flasks, food and mats under Junk until you closed and reopened them. Items still loading are no longer treated as junk, and the bags re-sort on their own a moment later once everything has loaded. Selling junk was never affected.
+
 ## [1.2.18] — 2026-11-01
 
 ### Fixed

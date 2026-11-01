@@ -2168,6 +2168,7 @@ ef:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
 ef:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
 ef:RegisterEvent("PLAYER_ENTERING_WORLD")
 ef:RegisterEvent("PLAYER_REGEN_ENABLED")
+ef:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 
 ef:SetScript("OnEvent", function(_, event, arg1)
     if event == "ADDON_LOADED" and arg1 == "VoidBags" then
@@ -2310,6 +2311,18 @@ ef:SetScript("OnEvent", function(_, event, arg1)
 
     if event == "BAG_UPDATE_COOLDOWN" then
         if isOpen then RefreshButtonCooldowns() end
+        return
+    end
+
+    -- An item that was still loading when the bags were laid out has arrived:
+    -- re-sort so it moves out of the placeholder spot. The flag is cleared here and
+    -- set again by CategorizeItem if anything is still missing; the 0.1 s debounce
+    -- folds the burst of these events after a loading screen into one layout.
+    if event == "GET_ITEM_INFO_RECEIVED" then
+        if VB._itemInfoPending and isOpen then
+            VB._itemInfoPending = false
+            DebouncedRefresh()
+        end
         return
     end
 
