@@ -367,6 +367,19 @@ function VB:IsUpgrade(bag, slot, itemLink)
     return pctChange > 0, pctChange
 end
 
+-- Does the item's tooltip say "Soulbound"? C_Item.IsBoundToAccountUntilEquip also
+-- answers true for some Soulbound gear (Bind-on-Equip delve drops, seen 2026-11-01),
+-- so the binding line the player actually sees has the last word.
+local function TooltipSaysSoulbound(bag, slot)
+    local ok, data = pcall(C_TooltipInfo.GetBagItem, bag, slot)
+    if not ok or not data or not data.lines then return false end
+    for _, line in ipairs(data.lines) do
+        local t = line.leftText
+        if t and not (issecretvalue and issecretvalue(t)) and t == ITEM_SOULBOUND then return true end
+    end
+    return false
+end
+
 ----------------------------------------------------------------------
 -- Main categorization function
 ----------------------------------------------------------------------
@@ -446,15 +459,12 @@ function VB:CategorizeItem(bag, slot)
             isWarband = true
         else
             local itemLoc = ItemLocation:CreateFromBagAndSlot(bag, slot)
-            if itemLoc and C_Item.DoesItemExist(itemLoc) then
-                if C_Item.IsBoundToAccountUntilEquip then
-                    local ok, r = pcall(C_Item.IsBoundToAccountUntilEquip, itemLoc)
-                    if ok and r then isWarband = true end
-                end
-                if not isWarband and C_Item.IsItemBoundToAccountUntilEquip then
-                    local ok, r = pcall(C_Item.IsItemBoundToAccountUntilEquip, itemLoc)
-                    if ok and r then isWarband = true end
-                end
+            -- NOT C_Item.IsItemBoundToAccountUntilEquip: that one takes an item ID/link and
+            -- answers for the item TYPE (same as bindType 7), so as a fallback it put every
+            -- soulbound copy straight back into Warband.
+            if itemLoc and C_Item.DoesItemExist(itemLoc) and C_Item.IsBoundToAccountUntilEquip then
+                local ok, r = pcall(C_Item.IsBoundToAccountUntilEquip, itemLoc)
+                if ok and r then isWarband = not TooltipSaysSoulbound(bag, slot) end
             end
         end
         if isWarband then

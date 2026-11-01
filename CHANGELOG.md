@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.18] — 2026-11-01
+
+### Fixed
+- **Warband section.** Soulbound gear no longer shows under Warband. Gear that drops as Bind on Equip (delve gear, for example) could be listed there even though its tooltip says Soulbound; it now goes back to Equipment. Real warbound items and heirlooms still show under Warband.
+
 ## [1.2.17] — 2026-10-25
 
 ### Fixed
