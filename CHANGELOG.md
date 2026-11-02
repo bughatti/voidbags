@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.20] — 2026-11-01
+
+### Added
+- **Knowledge section.** Profession knowledge items you still have to use (right-click) to get the points, such as treasures, weekly drops, treatises and books, now get their own section near the top so they don't get forgotten. Works for every profession.
+- **Delves section.** Delve items, such as the weekly bounty map (Trovehunter's Bounty) and coffer keys, are grouped together. Delve gear stays under Equipment.
+
 ## [1.2.19] — 2026-11-01
 
 ### Fixed

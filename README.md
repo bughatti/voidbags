@@ -2,7 +2,7 @@
 
 **Smart bag organizer with auto-categorization, cross-character tracking, and one-click merchant tools.**
 
-VoidBags replaces Blizzard's bags with one unified window that sorts every item into 17 categories automatically. It adds a matching bank panel, cross-character item search, junk auto-sell, auto-repair (optionally from guild funds), and auction-value awareness.
+VoidBags replaces Blizzard's bags with one unified window that sorts every item into 19 categories automatically. It adds a matching bank panel, cross-character item search, junk auto-sell, auto-repair (optionally from guild funds), and auction-value awareness.
 
 ---
 
@@ -17,8 +17,11 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 - **Settings** behind the gear icon in the title bar
 - **Disenchant, Milling, Prospecting and Pick Lock buttons** next to the title — only the ones your character knows. Click the button, then the item
 
-### 17 automatic categories
-Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food & Drink** · Consumables · Quest Items · Keys · **Alchemy Mats** · **Cooking Mats** · **Jewelcrafting Mats** · Other Profession Mats · Craftable · Sell / Other Mats · Junk · Miscellaneous
+### 19 automatic categories
+Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food & Drink** · **Knowledge** · Consumables · Quest Items · Keys · **Delves** · **Alchemy Mats** · **Cooking Mats** · **Jewelcrafting Mats** · Other Profession Mats · Craftable · Sell / Other Mats · Junk · Miscellaneous
+
+- **Knowledge** collects profession knowledge items you still have to use (right-click) to get the points: treasures, weekly drops, treatises and books, for every profession
+- **Delves** collects delve items such as the weekly bounty map and coffer keys
 
 ### Item markers at a glance
 - **Item level** on gear and a **green upgrade arrow** on real upgrades — only gear your spec can use, never an off-hand while you hold a two-hander, never a swap that breaks your tier set bonus

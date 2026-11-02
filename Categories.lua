@@ -13,9 +13,12 @@ VB.CATEGORIES = {
     Flasks             = { order = 4,  label = "Flasks",             color = { 0.20, 0.85, 1.00 } },
     Potions            = { order = 5,  label = "Potions",            color = { 1.00, 0.40, 0.20 } },
     Food               = { order = 6,  label = "Food & Drink",       color = { 0.40, 0.90, 0.30 } },
+    -- Knowledge: profession knowledge you still have to USE (right-click) to get the points.
+    Knowledge          = { order = 6.5, label = "Knowledge",         color = { 1.00, 0.85, 0.35 } },
     Consumables        = { order = 7,  label = "Consumables",        color = VB.palette.green },
     QuestItems         = { order = 8,  label = "Quest Items",        color = VB.palette.yellow },
     Keys               = { order = 9,  label = "Keys",               color = VB.palette.orange },
+    Delves             = { order = 9.5, label = "Delves",            color = { 0.55, 0.45, 1.00 } },
     AlchemyMats        = { order = 10, label = "Alchemy Mats",       color = { 0.70, 0.40, 1.00 } },
     CookingMats        = { order = 11, label = "Cooking Mats",       color = { 0.95, 0.55, 0.20 } },
     JewelcraftingMats  = { order = 12, label = "Jewelcrafting Mats", color = { 0.50, 0.85, 1.00 } },
@@ -88,6 +91,70 @@ local function IsKeyItem(itemID, itemName)
         return true
     end
     return false
+end
+
+----------------------------------------------------------------------
+-- Knowledge / Delves detection (2026-11-01). Read from the item's own tooltip,
+-- so it covers every profession and every new delve item without an ID list:
+--   Knowledge: "Use: Study to increase your Midnight Herbalism Knowledge by 3."
+--   Delves:    any line about Delves (bounty maps, coffer keys/shards, Nemesis lures).
+-- English clients (the same rule VoidGear's consumables use). One tooltip read per
+-- item ID; nothing is cached until the tooltip has actually loaded.
+----------------------------------------------------------------------
+-- Known Midnight knowledge items (treasures, weekly drops, treatises, books) for
+-- Herbalism and Mining, in case a tooltip doesn't load in time.
+local KNOWLEDGE_IDS = {}
+for _, id in ipairs({
+    238465, 238466, 238467, 245761, 258410, 250443, 274513,                  -- Herbalism
+    238468, 238469, 238470, 238471, 238472, 238473, 238474, 238475,
+    237496, 237506, 237507, 245762, 250924, 250444, 274509,                  -- Mining
+    238596, 238597, 238598, 238599, 238600, 238601, 238602, 238603,
+}) do KNOWLEDGE_IDS[id] = true end
+
+-- The weekly delve map: Trovehunter's Bounty (Midnight S2; was Delver's Bounty), used on
+-- a run for a Hidden Trove chest at the end.
+local DELVE_IDS = { [252415] = true }
+
+-- Item classes the tooltip check runs on: consumables, reagents, trade goods, quest,
+-- keys, misc. Gear and recipes never (gear tooltips name Delves as a source).
+local SPECIAL_CLASSES = { [0] = true, [5] = true, [7] = true, [12] = true, [13] = true, [15] = true }
+
+-- A "no" is only cached once the item's data is loaded and every line was readable;
+-- otherwise the item is re-checked on the next layout (VoidBags.lua re-lays-out on
+-- GET_ITEM_INFO_RECEIVED while _itemInfoPending is set). Within one layout (same
+-- frame) an item ID is read once, so stacks of it don't each re-read the tooltip.
+local specialCache, retryAt = {}, {}
+local function SpecialCategory(bag, slot, itemID, classID, itemName)
+    if KNOWLEDGE_IDS[itemID] then return "Knowledge" end
+    if DELVE_IDS[itemID] then return "Delves" end
+    if itemName and itemName:lower():find("coffer key") then return "Delves" end
+    if not SPECIAL_CLASSES[classID] then return nil end
+    local cached = specialCache[itemID]
+    if cached ~= nil then return cached or nil end
+    local now = GetTime()
+    if retryAt[itemID] == now then return nil end
+    retryAt[itemID] = now
+    local ok, data = pcall(C_TooltipInfo.GetBagItem, bag, slot)
+    if not ok or not data or not data.lines then data = { lines = {} } end   -- inconclusive: retried below
+    local result, conclusive = false, C_Item.IsItemDataCachedByID and C_Item.IsItemDataCachedByID(itemID)
+    if #data.lines == 0 then conclusive = false end
+    for _, line in ipairs(data.lines) do
+        local t = line.leftText
+        if t and issecretvalue and issecretvalue(t) then
+            conclusive = false
+        elseif t then
+            if t:find("Knowledge by %d") then result = "Knowledge" break end
+            if not result and (t:find("Delve") or t:find("Delver")) then result = "Delves" end
+        end
+    end
+    if result or conclusive then
+        specialCache[itemID] = result
+        retryAt[itemID] = nil
+    else
+        VB._itemInfoPending = true
+        if C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, itemID) end
+    end
+    return result or nil
 end
 
 ----------------------------------------------------------------------
@@ -434,6 +501,14 @@ function VB:CategorizeItem(bag, slot)
     -- Junk (grey quality) — unless protected
     if quality == 0 and not isProtected then
         return "Junk", markers
+    end
+
+    -- Knowledge to use / Delve items (tooltip-based, see SpecialCategory)
+    local special = SpecialCategory(bag, slot, itemID, classID, itemName)
+    if special then
+        -- delve toys / mounts keep their "learnable" marker
+        if VB:IsLearnable(bag, slot, itemID, itemLink) then markers.learnable = true end
+        return special, markers
     end
 
     -- Quest items

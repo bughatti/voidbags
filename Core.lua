@@ -148,7 +148,7 @@ VB.defaults = {
     autoRepair = true,
     useGuildRepair = true,
     repairCostCap = 0,            -- 0 = no cap; otherwise max copper to spend per repair (personal funds only)
-    sortOrder = { "Equipment", "Warband", "Cosmetic", "Flasks", "Potions", "Food", "Consumables", "QuestItems", "Keys", "AlchemyMats", "CookingMats", "JewelcraftingMats", "MyProfMats", "Craftable", "SellableReagents", "Junk", "Misc" },
+    sortOrder = { "Equipment", "Warband", "Cosmetic", "Flasks", "Potions", "Food", "Knowledge", "Consumables", "QuestItems", "Keys", "Delves", "AlchemyMats", "CookingMats", "JewelcraftingMats", "MyProfMats", "Craftable", "SellableReagents", "Junk", "Misc" },
     position = nil,
     bankPosition = nil,
 }
