@@ -121,9 +121,20 @@ local SPECIAL_CLASSES = { [0] = true, [5] = true, [7] = true, [12] = true, [13] 
 
 -- A "no" is only cached once the item's data is loaded and every line was readable;
 -- otherwise the item is re-checked on the next layout (VoidBags.lua re-lays-out on
--- GET_ITEM_INFO_RECEIVED while _itemInfoPending is set). Within one layout (same
+-- that item's GET_ITEM_INFO_RECEIVED, see VB:WaitForItem). Within one layout (same
 -- frame) an item ID is read once, so stacks of it don't each re-read the tooltip.
 local specialCache, retryAt = {}, {}
+
+-- Items the bags are waiting on: VoidBags.lua re-lays-out only when one of THESE
+-- arrives. Any GET_ITEM_INFO_RECEIVED used to do it, so during an Auction House
+-- scan (thousands of items loading) the bags redrew every 0.1 s and flickered.
+VB._waitingFor = VB._waitingFor or {}
+function VB:WaitForItem(itemID)
+    if not itemID then return end
+    self._waitingFor[itemID] = true
+    if C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, itemID) end
+end
+
 local function SpecialCategory(bag, slot, itemID, classID, itemName)
     if KNOWLEDGE_IDS[itemID] then return "Knowledge" end
     if DELVE_IDS[itemID] then return "Delves" end
@@ -151,8 +162,7 @@ local function SpecialCategory(bag, slot, itemID, classID, itemName)
         specialCache[itemID] = result
         retryAt[itemID] = nil
     else
-        VB._itemInfoPending = true
-        if C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, itemID) end
+        VB:WaitForItem(itemID)
     end
     return result or nil
 end
@@ -468,11 +478,8 @@ function VB:CategorizeItem(bag, slot)
     if not itemName then
         itemName = info.iconFileID and "Loading..." or "Unknown"
         -- Not cached yet (bags opened right after a loading screen). Ask for it;
-        -- VoidBags.lua re-lays-out on GET_ITEM_INFO_RECEIVED while this is set.
-        VB._itemInfoPending = true
-        if itemID and C_Item.RequestLoadItemDataByID then
-            pcall(C_Item.RequestLoadItemDataByID, itemID)
-        end
+        -- VoidBags.lua re-lays-out when this item's GET_ITEM_INFO_RECEIVED comes in.
+        VB:WaitForItem(itemID)
     end
 
     local classID = classIDNum or 0

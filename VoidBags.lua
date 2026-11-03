@@ -2315,13 +2315,15 @@ ef:SetScript("OnEvent", function(_, event, arg1)
     end
 
     -- An item that was still loading when the bags were laid out has arrived:
-    -- re-sort so it moves out of the placeholder spot. The flag is cleared here and
-    -- set again by CategorizeItem if anything is still missing; the 0.1 s debounce
-    -- folds the burst of these events after a loading screen into one layout.
+    -- re-sort so it moves out of the placeholder spot. Only items the bags asked
+    -- for (VB:WaitForItem) count: other addons load thousands (an AH scan) and
+    -- each one used to redraw the bags. The 0.1 s debounce folds the burst after a
+    -- loading screen into one layout.
     if event == "GET_ITEM_INFO_RECEIVED" then
-        if VB._itemInfoPending and isOpen then
-            VB._itemInfoPending = false
-            DebouncedRefresh()
+        local itemID = arg1
+        if itemID and VB._waitingFor and VB._waitingFor[itemID] then
+            VB._waitingFor[itemID] = nil
+            if isOpen then DebouncedRefresh() end
         end
         return
     end

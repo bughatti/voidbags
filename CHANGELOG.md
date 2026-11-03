@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.23] — 2026-11-02
+
+### Added
+- **Gathering for your crafters (with VoidGather).** Set a crafting goal in VoidGather and the Warband tab of your bank lists the goal materials you're carrying that your crafter still needs, with a **Deposit for crafters** button that puts them in the warband bank. Only recipes with a goal count, and the list clears itself once they're in.
+
+### Fixed
+- **No more flickering while the Auction House scans.** Your bags redrew every time any item finished loading, and an AH scan loads thousands. They now redraw only when an item in your bags finishes loading.
+
 ## [1.2.22] — 2026-11-02
 
 ### Changed

@@ -479,6 +479,165 @@ local function ApplyBankBagFilter(bag)
     end
 end
 
+----------------------------------------------------------------------
+-- Gathering for your crafters (Warband tab, needs VoidGather): the goal
+-- materials in your bags that another of your characters' crafting goals
+-- still needs, with one button to put them in the warband bank. Only
+-- recipes with a goal count; once deposited the section clears itself.
+----------------------------------------------------------------------
+local gatherSection
+
+local function DepositForCrafters()
+    local G = _G.VoidGather and VoidGather.Goals
+    local list = G and G.ToDeposit and G:ToDeposit()
+    if not (list and #list > 0) then return end
+    local bankType = (Enum and Enum.BankType and Enum.BankType.Account) or 2
+    -- One budget per material: its quality ranks (e.ids) share it.
+    local want, matOf = {}, {}   -- material -> how many still to move; itemID -> material
+    for _, e in ipairs(list) do
+        want[e.id] = (want[e.id] or 0) + e.count
+        for _, id in ipairs(e.ids) do matOf[id] = e.id end
+    end
+    local function carried()
+        local n = 0
+        for id in pairs(matOf) do n = n + (C_Item.GetItemCount(id) or 0) end
+        return n
+    end
+    -- whole stacks, smallest first, until each material's count is covered
+    local stacks = {}
+    for bag = 0, NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4 do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info and info.itemID and matOf[info.itemID] and not info.isLocked then
+                local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+                if not C_Bank.IsItemAllowedInBankType or C_Bank.IsItemAllowedInBankType(bankType, loc) then
+                    stacks[#stacks + 1] = { bag = bag, slot = slot, id = info.itemID, n = info.stackCount or 1 }
+                end
+            end
+        end
+    end
+    table.sort(stacks, function(a, b) return a.n < b.n end)
+    local toMove = {}
+    for _, s in ipairs(stacks) do
+        local mat = matOf[s.id]
+        if want[mat] > 0 then
+            want[mat] = want[mat] - s.n
+            toMove[#toMove + 1] = s
+        end
+    end
+    if #toMove == 0 then
+        print(VB.C_CYAN .. "[VoidBags]|r Nothing to deposit: those materials can't go in the warband bank.")
+        return
+    end
+    local before = carried()
+    local idx = 0
+    local function MoveNext()
+        idx = idx + 1
+        if idx > #toMove or not bankIsOpen then
+            -- report what actually left the bags (a full warband bank refuses quietly)
+            C_Timer.After(0.5, function()
+                local moved = before - carried()
+                if moved > 0 then
+                    print(VB.C_CYAN .. "[VoidBags]|r Deposited " .. moved .. " item" .. (moved == 1 and "" or "s")
+                        .. " for your crafters.")
+                else
+                    print(VB.C_CYAN .. "[VoidBags]|r Nothing was deposited. Is the warband bank full?")
+                end
+                if bankIsOpen and bankFrame.activeTab == "warband" then LayoutBank(WARBAND_BAG_IDS) end
+            end)
+            return
+        end
+        local s = toMove[idx]
+        -- the slot may have changed since the list was made (a sort, a move): check it
+        local info = C_Container.GetContainerItemInfo(s.bag, s.slot)
+        if info and info.itemID == s.id and not info.isLocked then
+            C_Container.UseContainerItem(s.bag, s.slot, nil, bankType)
+        end
+        C_Timer.After(0.05, MoveNext)
+    end
+    MoveNext()
+end
+
+-- Lays the section out at the top of the content; returns its height (0 = hidden).
+local function LayoutGatherSection(parent, width)
+    local G = _G.VoidGather and VoidGather.Goals
+    local list = G and G.ToDeposit and G:ToDeposit() or {}
+    if #list == 0 then
+        if gatherSection then gatherSection:Hide() end
+        return 0
+    end
+    local f = gatherSection
+    if not f then
+        f = CreateFrame("Frame", nil, parent)
+        f.head = f:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(f.head, 11, "OUTLINE")
+        f.head:SetPoint("TOPLEFT", 4, -3)
+        f.head:SetTextColor(0, 0.78, 1)
+        f.head:SetText("Gathering for your crafters")
+        local line = f:CreateTexture(nil, "ARTWORK")
+        line:SetHeight(1)
+        line:SetPoint("TOPLEFT", 0, -20)
+        line:SetPoint("TOPRIGHT", 0, -20)
+        line:SetTexture("Interface\\Buttons\\WHITE8X8")
+        line:SetVertexColor(0, 0.78, 1, 0.3)
+        f.note = f:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(f.note, 10, "")
+        f.note:SetPoint("TOPLEFT", 4, -25)   -- width set per layout: a RIGHT anchor would pin its height and cut it off
+        f.note:SetJustifyH("LEFT")
+        f.note:SetWordWrap(true)
+        f.note:SetTextColor(P.textDim[1], P.textDim[2], P.textDim[3])
+        f.note:SetText("Deposit gather: your crafting goals (VoidGather) still need these. Put them in the warband bank so your crafter can use them.")
+        local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+        b:SetSize(130, 20)
+        VB:CreateBackdrop(b, "section")
+        b.text = b:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(b.text, 10, "")
+        b.text:SetPoint("CENTER")
+        b.text:SetText(VB.C_GREEN .. "Deposit for crafters|r")
+        b:SetScript("OnClick", DepositForCrafters)
+        b:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine("Deposit for crafters", 0, 0.78, 1)
+            GameTooltip:AddLine("Moves the materials listed here from your bags into the warband bank, whole stacks.", 0.9, 0.9, 0.9, true)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        f.button = b
+        f.lines = {}
+        gatherSection = f
+    end
+    f:SetParent(parent)
+    f:SetWidth(width)
+    f.note:SetWidth(width - 8)
+    local y = -25 - math.ceil(f.note:GetStringHeight()) - 6
+    for i, e in ipairs(list) do
+        local fs = f.lines[i]
+        if not fs then
+            fs = f:CreateFontString(nil, "OVERLAY")
+            VB:SetFont(fs, 11, "")
+            fs:SetJustifyH("LEFT")
+            f.lines[i] = fs
+        end
+        local tex = select(5, C_Item.GetItemInfoInstant(e.id))
+        local name = C_Item.GetItemNameByID(e.id) or ("item " .. e.id)
+        fs:SetText(("%s%s |cffffffffx%d|r  |cff8c8c9efor|r %s"):format(
+            tex and ("|T" .. tex .. ":14:14|t ") or "", name, e.count, G:Who(e.key)))
+        fs:ClearAllPoints()
+        fs:SetPoint("TOPLEFT", 8, y)
+        fs:Show()
+        y = y - 16
+    end
+    for i = #list + 1, #f.lines do f.lines[i]:Hide() end
+    f.button:ClearAllPoints()
+    f.button:SetPoint("TOPLEFT", 6, y - 4)
+    y = y - 4 - 20 - 10
+    f:SetHeight(-y)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    f:Show()
+    return -y
+end
+
 LayoutBank = function(bagList)
     if not bankFrame then return end
     if InCombatLockdown() then bankLayoutPending = true; return end
@@ -513,8 +672,13 @@ LayoutBank = function(bagList)
         end
     end
 
-    local yOffset = 0
     local totalWidth = columns * (iconSize + spacing) - spacing
+    local yOffset = 0
+    if bagList == WARBAND_BAG_IDS then
+        yOffset = LayoutGatherSection(contentParent, totalWidth)
+    elseif gatherSection then
+        gatherSection:Hide()
+    end
     local sortOrder = VB:GetConfig("sortOrder")
     local totalItems = 0
 
