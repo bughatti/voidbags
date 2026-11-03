@@ -39,6 +39,7 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 - **Drop anywhere** — drag an item onto any empty part of the bags, bank or Warband window and it goes into the first free slot; no scrolling to find one
 - **Full Warband bank support**, including tabs you buy later
 - **Deposit Warband** button moves your warbound gear into the Warband bank and leaves warbound consumables in your bags
+- **Gathering for your crafters** (with VoidGather) — set a crafting goal in VoidGather (say, 20 feasts on your cook) and the Warband tab lists the goal materials you're carrying that your crafter still needs, with one **Deposit for crafters** button. Crafting uses reagents straight from the Warband bank, so your crafter can cook right away, and the list clears itself
 - **Buy Tab button** shows the next tab's cost (opens Blizzard's bank to complete the purchase)
 
 ### Cross-character inventory
