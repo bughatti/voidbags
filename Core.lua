@@ -7,6 +7,12 @@ local function dbg(fmt, ...) if VoidSpy and VoidSpy.Log then VoidSpy:Log("VoidBa
 local ADDON_NAME, VB = ...
 _G.VoidBags = VB
 
+-- Settings and protected items are per character (CharSettings.lua); window
+-- positions and sizes stay shared. Alt inventories, warband and guild bank
+-- snapshots, and manual category choices stay account-wide.
+VB.CharSettings.Register(ADDON_NAME, "VoidBagsDB", { "config", "protected" },
+    { "config.position", "config.size", "config.bankPosition", "config.bankSize", "config.guildPosition" })
+
 ----------------------------------------------------------------------
 -- Palette (matches VoidUI)
 ----------------------------------------------------------------------

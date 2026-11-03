@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.24] — 2026-11-02
+
+### Changed
+- **Settings are per character.** Each character keeps its own VoidBags settings, and a new character starts with the settings of the one you played last, so nothing resets when you update. Right-click the Void hub icon by your minimap and pick **Copy settings from...** to take another character's settings for one Void addon or all of them. Protected items are per character too. Window positions and sizes, your alts' inventories and your manual category choices stay shared.
+
 ## [1.2.23] — 2026-11-02
 
 ### Added
