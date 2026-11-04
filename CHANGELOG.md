@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.25] — 2026-11-03
+
+### Added
+- **Your character banks are remembered.** Like the warband bank, each character's bank is saved when you open it, so your other characters (and VoidGear's Spares tab) can see what's in it.
+
 ## [1.2.24] — 2026-11-02
 
 ### Changed

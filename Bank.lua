@@ -1444,6 +1444,43 @@ local function SnapshotWarbandBank()
     end
 end
 
+-- This character's bank, saved on its own record (VoidBagsDB.characters[key].bank,
+-- same shape as .bags) so other characters and other Void addons can see it --
+-- VoidGear's Spares tab judges spare gear in every bank (the user asked, 2026-11-03).
+local function SnapshotCharacterBank()
+    if not VoidBagsDB then return end
+    -- a warband-only banker can't show the character bank: reading it there
+    -- would save an empty bank over the real one (Codex Sol, 2026-11-03)
+    if C_Bank and C_Bank.CanViewBank then
+        local ok, can = pcall(C_Bank.CanViewBank, (Enum.BankType and Enum.BankType.Character) or 0)
+        if ok and not can then return end
+    end
+    local key = VB:GetPlayerKey()
+    VoidBagsDB.characters = VoidBagsDB.characters or {}
+    if key and not VoidBagsDB.characters[key] and VB.SnapshotInventory then VB:SnapshotInventory() end
+    local rec = key and VoidBagsDB.characters[key]
+    if not rec then return end
+    local items = {}
+    for _, bag in ipairs(BANK_BAG_IDS) do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info and info.itemID and not VoidLib.Secrets.IsSecret(info.itemID) then
+                items[#items + 1] = {
+                    id = info.itemID,
+                    count = info.stackCount,
+                    link = C_Container.GetContainerItemLink(bag, slot),
+                    name = C_Item.GetItemNameByID(info.itemID),
+                    quality = info.quality,
+                    wb = VB.WarbandOK(bag, slot, info.itemID),
+                    bag = bag,
+                    slot = slot,
+                }
+            end
+        end
+    end
+    rec.bank, rec.bankTime = items, time()
+end
+
 ----------------------------------------------------------------------
 -- Bank events
 ----------------------------------------------------------------------
@@ -1469,6 +1506,7 @@ local function RefreshBank()
             LayoutBank(bankFrame.activeTab == "warband" and WARBAND_BAG_IDS or BANK_BAG_IDS)
             if bankFrame.UpdateBuyTabButton then bankFrame.UpdateBuyTabButton() end
             SnapshotWarbandBank()  -- keep the cross-char snapshot current after deposits/withdrawals
+            SnapshotCharacterBank()
         end
     end)
 end
@@ -1494,6 +1532,7 @@ bankEf:SetScript("OnEvent", function(_, event)
     if event == "BANKFRAME_OPENED" then
         OnBankOpened()
         SnapshotWarbandBank()
+        SnapshotCharacterBank()
         return
     end
 

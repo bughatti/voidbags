@@ -749,6 +749,18 @@ end
 ----------------------------------------------------------------------
 -- Cross-character inventory snapshot
 ----------------------------------------------------------------------
+-- Whether a piece of gear can go into the warband bank (to your other
+-- characters): only readable now, as a BoE you once wore looks the same in
+-- an item link. VoidGear's Spares tab uses it. nil = not gear / can't tell.
+function VB.WarbandOK(bag, slot, itemID)
+    local classID = itemID and select(6, C_Item.GetItemInfoInstant(itemID))
+    if classID ~= 2 and classID ~= 4 then return nil end
+    if not (C_Bank and C_Bank.IsItemAllowedInBankType and Enum.BankType and ItemLocation) then return nil end
+    local ok, yes = pcall(C_Bank.IsItemAllowedInBankType, Enum.BankType.Account, ItemLocation:CreateFromBagAndSlot(bag, slot))
+    if ok then return yes and true or false end
+    return nil
+end
+
 function VB:SnapshotInventory()
     local key = VB:GetPlayerKey()
     local displayKey = self:GetPlayerDisplayKey()
@@ -779,6 +791,9 @@ function VB:SnapshotInventory()
         timestamp = time(),
         -- Keep the profession list UpdateProfessions stored on this record (alts read it).
         professions = VoidBagsDB.characters[key] and VoidBagsDB.characters[key].professions,
+        -- and the character bank Bank.lua saved the last time it was open
+        bank = VoidBagsDB.characters[key] and VoidBagsDB.characters[key].bank,
+        bankTime = VoidBagsDB.characters[key] and VoidBagsDB.characters[key].bankTime,
     }
 
     -- Include reagent bag (slot 5). Iterating 0..4 silently dropped every
@@ -797,6 +812,7 @@ function VB:SnapshotInventory()
                     link = link,
                     name = C_Item.GetItemNameByID(info.itemID),
                     quality = info.quality,
+                    wb = VB.WarbandOK(bag, slot, info.itemID),
                     bag = bag,
                     slot = slot,
                 }
