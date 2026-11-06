@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.27] — 2026-11-06
+
+### Fixed
+- **Splitting a stack for a trade or mail gives the right amount.** On WoW Forever (and Classic), a split stack still on your cursor went into the trade or mail slot as the whole stack: split 2 of 9, all 9 went in. With a trade or mail window open, Ctrl+right-click split now drops the part you chose into an empty bag slot and picks it back up, so exactly that many goes over. Needs one free bag slot (VoidBags tells you if there isn't one).
+
+## [1.2.26] — 2026-11-04
+
+### Changed
+- **Materials for your crafters** (Warband tab, with VoidGather): the section and its **Deposit for crafters** button now take every material another of your characters crafts with, not just crafting-goal materials. Long lists show the first 12 and "...and N more"; the button deposits them all. What the character you're on crafts with stays in its bags, except disenchanting materials.
+
+### Added
+- **Take my materials** (Warband tab, with VoidGather): what in the warband bank the character you're on crafts with, back into its bags in one click. Disenchanting materials stay for your enchanter (an enchanter takes them), and anything another character's crafting goal needs stays put. Only crafting materials move, never potions or food.
+
 ## [1.2.25] — 2026-11-03
 
 ### Added

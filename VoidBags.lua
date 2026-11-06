@@ -12,6 +12,50 @@ local function PopupEditBox(p)
     return p and ((p.GetEditBox and p:GetEditBox()) or p.EditBox or p.editBox)
 end
 
+-- Split a stack onto the cursor. Classic / WoW Forever: a split that is still on the cursor
+-- goes into a trade or mail slot as the WHOLE stack (traced 2026-11-06: split 2 of 9,
+-- ClickTradeButton put all 9 in). The fix Classic players do by hand: put the split part
+-- in an empty bag slot first, then hand over that stack. While a trade or mail window is
+-- open, this does it for you: the part lands in an empty slot and is picked straight back
+-- up, so the cursor holds a real stack of exactly that many.
+local function HandoffOpen()
+    return (TradeFrame and TradeFrame:IsShown()) or (SendMailFrame and SendMailFrame:IsShown()) or false
+end
+
+local function FreeSlotBesides(bag, slot)
+    for b = 0, (NUM_BAG_SLOTS or 4) do
+        local free, family = C_Container.GetContainerNumFreeSlots(b)
+        if free and free > 0 and (family == 0 or family == nil) then
+            for _, s in ipairs(C_Container.GetContainerFreeSlots(b) or {}) do
+                if not (b == bag and s == slot) then return b, s end
+            end
+        end
+    end
+end
+
+local function SplitStackTo(bag, slot, amount)
+    C_Container.SplitContainerItem(bag, slot, amount)
+    if not HandoffOpen() then return end
+    local fb, fs = FreeSlotBesides(bag, slot)
+    if not fb then
+        print("|cff00c7ffVoidBags|r: no empty bag slot, so the trade or mail may take the whole stack. Free a slot and split again.")
+        return
+    end
+    C_Container.PickupContainerItem(fb, fs)            -- drop the split part in the empty slot
+    local tries = 0
+    local function pickBack()
+        tries = tries + 1
+        local info = C_Container.GetContainerItemInfo(fb, fs)
+        if info and not info.isLocked and not CursorHasItem() then
+            C_Container.PickupContainerItem(fb, fs)    -- a real stack of `amount` on the cursor
+        elseif tries < 30 then
+            C_Timer.After(0.1, pickBack)
+        end
+    end
+    C_Timer.After(0.1, pickBack)
+end
+VB.SplitStackTo = SplitStackTo
+
 -- Open Blizzard's stack-split prompt with multiple compatibility paths.
 -- Midnight 12.0.5 removed the OpenStackSplitFrame() global; the method form
 -- on StackSplitFrame is what survived. If both are missing, fall back to a
@@ -39,7 +83,7 @@ local function ShowSplitPrompt(stackCount, anchorFrame, anchorPoint, relativePoi
             local eb = PopupEditBox(self)
             local n = tonumber((eb and eb:GetText()) or "")
             if n and data and data.bag and data.slot and n > 0 and n < (data.max or 0) then
-                C_Container.SplitContainerItem(data.bag, data.slot, n)
+                SplitStackTo(data.bag, data.slot, n)
             end
         end,
         EditBoxOnEnterPressed = function(self)
@@ -309,7 +353,7 @@ local function CreateItemButton(parent, bag, slot)
 
     -- Required by StackSplitFrame
     btn.SplitStack = function(self, amount)
-        C_Container.SplitContainerItem(self.bag, self.slot, amount)
+        SplitStackTo(self.bag, self.slot, amount)
     end
 
     -- Click semantics:

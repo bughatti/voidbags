@@ -480,10 +480,10 @@ local function ApplyBankBagFilter(bag)
 end
 
 ----------------------------------------------------------------------
--- Gathering for your crafters (Warband tab, needs VoidGather): the goal
--- materials in your bags that another of your characters' crafting goals
--- still needs, with one button to put them in the warband bank. Only
--- recipes with a goal count; once deposited the section clears itself.
+-- Materials for your crafters (Warband tab, needs VoidGather): what in your
+-- bags another of your characters crafts with (its crafting goals first, then
+-- any recipe it knows), with one button to put it all in the warband bank.
+-- Once deposited the section clears itself.
 ----------------------------------------------------------------------
 local gatherSection
 
@@ -558,6 +558,133 @@ local function DepositForCrafters()
     MoveNext()
 end
 
+----------------------------------------------------------------------
+-- Your materials in the warband bank (Warband tab, needs VoidGather): the
+-- reverse of Deposit for crafters. What in the warband bank this character
+-- crafts with, back into its bags in one click (the user, 2026-11-03: "a
+-- button that says something like pull mats, just for my stuff").
+----------------------------------------------------------------------
+local takeSection
+
+local function TakeMyMaterials()
+    local G = _G.VoidGather and VoidGather.Goals
+    local want = G and G.ToTake and G:ToTake() or {}
+    if not next(want) then return end
+    local function carried()
+        local n = 0
+        for id in pairs(want) do n = n + (C_Item.GetItemCount(id) or 0) end
+        return n
+    end
+    local free = 0
+    for bag = 0, NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4 do
+        free = free + (C_Container.GetContainerNumFreeSlots(bag) or 0)
+    end
+    local toMove = {}
+    for _, bag in ipairs(WARBAND_BAG_IDS) do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info and info.itemID and want[info.itemID] and not info.isLocked and #toMove < free then
+                toMove[#toMove + 1] = { bag = bag, slot = slot, id = info.itemID }
+            end
+        end
+    end
+    if #toMove == 0 then
+        print(VB.C_CYAN .. "[VoidBags]|r Your bags are full.")
+        return
+    end
+    local before = carried()
+    local idx = 0
+    local function MoveNext()
+        idx = idx + 1
+        if idx > #toMove or not bankIsOpen then
+            C_Timer.After(0.5, function()
+                local moved = carried() - before
+                print(VB.C_CYAN .. "[VoidBags]|r Took " .. moved .. " of your materials from the warband bank"
+                    .. (#toMove >= free and " (bags full: make room and press it again)" or "") .. ".")
+                if bankIsOpen and bankFrame.activeTab == "warband" then LayoutBank(WARBAND_BAG_IDS) end
+            end)
+            return
+        end
+        local s = toMove[idx]
+        local info = C_Container.GetContainerItemInfo(s.bag, s.slot)
+        if info and info.itemID == s.id and not info.isLocked then
+            C_Container.UseContainerItem(s.bag, s.slot)
+        end
+        C_Timer.After(0.05, MoveNext)
+    end
+    MoveNext()
+end
+
+-- Below the crafters section (y = where it ended); returns its height (0 = hidden).
+local function LayoutTakeSection(parent, width, y0)
+    local G = _G.VoidGather and VoidGather.Goals
+    local want = G and G.ToTake and G:ToTake() or {}
+    local ids = {}
+    for id in pairs(want) do ids[#ids + 1] = id end
+    if #ids == 0 then
+        if takeSection then takeSection:Hide() end
+        return 0
+    end
+    table.sort(ids, function(a, b) return want[a] > want[b] end)
+    local f = takeSection
+    if not f then
+        f = CreateFrame("Frame", nil, parent)
+        f.head = f:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(f.head, 11, "OUTLINE")
+        f.head:SetPoint("TOPLEFT", 4, -3)
+        f.head:SetTextColor(0, 0.78, 1)
+        f.head:SetText("Your materials in the warband bank")
+        local line = f:CreateTexture(nil, "ARTWORK")
+        line:SetHeight(1)
+        line:SetPoint("TOPLEFT", 0, -20)
+        line:SetPoint("TOPRIGHT", 0, -20)
+        line:SetTexture("Interface\\Buttons\\WHITE8X8")
+        line:SetVertexColor(0, 0.78, 1, 0.3)
+        f.text = f:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(f.text, 10, "")
+        f.text:SetPoint("TOPLEFT", 4, -25)
+        f.text:SetJustifyH("LEFT")
+        f.text:SetWordWrap(true)
+        f.text:SetTextColor(P.textDim[1], P.textDim[2], P.textDim[3])
+        local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+        b:SetSize(130, 20)
+        VB:CreateBackdrop(b, "section")
+        b.text = b:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(b.text, 10, "")
+        b.text:SetPoint("CENTER")
+        b.text:SetText(VB.C_GREEN .. "Take my materials|r")
+        b:SetScript("OnClick", TakeMyMaterials)
+        b:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine("Take my materials", 0, 0.78, 1)
+            GameTooltip:AddLine("Moves what this character crafts with from the warband bank into your bags. Disenchanting materials and anything another character's crafting goal needs stay.", 0.9, 0.9, 0.9, true)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        f.button = b
+        takeSection = f
+    end
+    f:SetParent(parent)
+    f:SetWidth(width)
+    f.text:SetWidth(width - 8)
+    -- one wrapped line of names instead of a row each: it's usually a lot
+    local names = {}
+    for i = 1, math.min(#ids, 8) do
+        names[#names + 1] = ("%s |cffffffffx%d|r"):format(C_Item.GetItemNameByID(ids[i]) or ("item " .. ids[i]), want[ids[i]])
+    end
+    f.text:SetText("This character crafts with these: " .. table.concat(names, ", ")
+        .. (#ids > 8 and (" and %d more"):format(#ids - 8) or "") .. ".")
+    local y = -25 - math.ceil(f.text:GetStringHeight()) - 6
+    f.button:ClearAllPoints()
+    f.button:SetPoint("TOPLEFT", 6, y - 4)
+    y = y - 4 - 20 - 10
+    f:SetHeight(-y)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -y0)
+    f:Show()
+    return -y
+end
+
 -- Lays the section out at the top of the content; returns its height (0 = hidden).
 local function LayoutGatherSection(parent, width)
     local G = _G.VoidGather and VoidGather.Goals
@@ -573,7 +700,7 @@ local function LayoutGatherSection(parent, width)
         VB:SetFont(f.head, 11, "OUTLINE")
         f.head:SetPoint("TOPLEFT", 4, -3)
         f.head:SetTextColor(0, 0.78, 1)
-        f.head:SetText("Gathering for your crafters")
+        f.head:SetText("Materials for your crafters")
         local line = f:CreateTexture(nil, "ARTWORK")
         line:SetHeight(1)
         line:SetPoint("TOPLEFT", 0, -20)
@@ -586,7 +713,7 @@ local function LayoutGatherSection(parent, width)
         f.note:SetJustifyH("LEFT")
         f.note:SetWordWrap(true)
         f.note:SetTextColor(P.textDim[1], P.textDim[2], P.textDim[3])
-        f.note:SetText("Deposit gather: your crafting goals (VoidGather) still need these. Put them in the warband bank so your crafter can use them.")
+        f.note:SetText("Your other characters craft with these (their crafting goals first). What this character crafts with stays in its bags, except disenchanting materials. Put them in the warband bank so they can use them.")
         local b = CreateFrame("Button", nil, f, "BackdropTemplate")
         b:SetSize(130, 20)
         VB:CreateBackdrop(b, "section")
@@ -598,7 +725,7 @@ local function LayoutGatherSection(parent, width)
         b:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
             GameTooltip:AddLine("Deposit for crafters", 0, 0.78, 1)
-            GameTooltip:AddLine("Moves the materials listed here from your bags into the warband bank, whole stacks.", 0.9, 0.9, 0.9, true)
+            GameTooltip:AddLine("Moves every material listed here from your bags into the warband bank, whole stacks.", 0.9, 0.9, 0.9, true)
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -610,7 +737,10 @@ local function LayoutGatherSection(parent, width)
     f:SetWidth(width)
     f.note:SetWidth(width - 8)
     local y = -25 - math.ceil(f.note:GetStringHeight()) - 6
-    for i, e in ipairs(list) do
+    -- every material any crafter uses can be a long list: show the first ones
+    local MAX_LINES = 12
+    local shown = math.min(#list, MAX_LINES)
+    local function line(i)
         local fs = f.lines[i]
         if not fs then
             fs = f:CreateFontString(nil, "OVERLAY")
@@ -618,16 +748,29 @@ local function LayoutGatherSection(parent, width)
             fs:SetJustifyH("LEFT")
             f.lines[i] = fs
         end
-        local tex = select(5, C_Item.GetItemInfoInstant(e.id))
-        local name = C_Item.GetItemNameByID(e.id) or ("item " .. e.id)
-        fs:SetText(("%s%s |cffffffffx%d|r  |cff8c8c9efor|r %s"):format(
-            tex and ("|T" .. tex .. ":14:14|t ") or "", name, e.count, G:Who(e.key)))
         fs:ClearAllPoints()
         fs:SetPoint("TOPLEFT", 8, y)
         fs:Show()
         y = y - 16
+        return fs
     end
-    for i = #list + 1, #f.lines do f.lines[i]:Hide() end
+    for i = 1, shown do
+        local e = list[i]
+        local tex = select(5, C_Item.GetItemInfoInstant(e.id))
+        local name = C_Item.GetItemNameByID(e.id) or ("item " .. e.id)
+        -- every character that crafts with it (two enchanters: both named)
+        local who = {}
+        for _, k in ipairs(e.keys or { e.key }) do who[#who + 1] = G:Who(k) end
+        line(i):SetText(("%s%s |cffffffffx%d|r  |cff8c8c9efor|r %s%s"):format(
+            tex and ("|T" .. tex .. ":14:14|t ") or "", name, e.count, table.concat(who, ", "),
+            e.goal and " |cff8c8c9e(goal)|r" or ""))
+    end
+    local used = shown
+    if #list > shown then
+        used = used + 1
+        line(used):SetText(("|cff8c8c9e...and %d more|r"):format(#list - shown))
+    end
+    for i = used + 1, #f.lines do f.lines[i]:Hide() end
     f.button:ClearAllPoints()
     f.button:SetPoint("TOPLEFT", 6, y - 4)
     y = y - 4 - 20 - 10
@@ -676,8 +819,10 @@ LayoutBank = function(bagList)
     local yOffset = 0
     if bagList == WARBAND_BAG_IDS then
         yOffset = LayoutGatherSection(contentParent, totalWidth)
-    elseif gatherSection then
-        gatherSection:Hide()
+        yOffset = yOffset + LayoutTakeSection(contentParent, totalWidth, yOffset)
+    else
+        if gatherSection then gatherSection:Hide() end
+        if takeSection then takeSection:Hide() end
     end
     local sortOrder = VB:GetConfig("sortOrder")
     local totalItems = 0
