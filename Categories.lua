@@ -240,7 +240,13 @@ local SHIELD_CLASSES = { WARRIOR = true, PALADIN = true, SHAMAN = true }
 -- spec IDs allowed to use it -- covers armor type, weapon proficiency AND
 -- primary stat in one call (a sword lists only sword specs, a healer-only
 -- off-hand omits Shadow). nil or an empty table = no restriction (jewelry).
+-- WoW Forever: its spec data is a placeholder (a rogue reports spec 1 with intellect as main
+-- stat, 2026-11-07), and players there wear whatever is an upgrade, off-class stats or not
+-- (the user wears druid / shaman blues from Wailing Caverns). So no spec check there: armor
+-- and weapon types, shields and VoidGear's score decide.
+local IS_FOREVER = (select(4, GetBuildInfo()) or 0) < 100000
 local function SpecCanUse(itemLink)
+    if IS_FOREVER then return true end
     if not (C_Item.GetItemSpecInfo and GetSpecialization and GetSpecializationInfo) then return true end
     local ok, specs = pcall(C_Item.GetItemSpecInfo, itemLink)
     if not ok or type(specs) ~= "table" or #specs == 0 then return true end

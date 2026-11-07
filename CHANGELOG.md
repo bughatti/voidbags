@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.29] — 2026-11-07
+
+### Fixed
+- **WoW Forever: upgrade arrows could go missing.** The "can your spec use this" check asked Forever's spec data, which is a placeholder there, so real upgrades could lose their green arrow. On Forever that check is skipped: armor type, weapon type and the item's score decide. Gear with stats meant for another class still counts by the stats you can use.
+
 ## [1.2.28] — 2026-11-06
 
 ### Added
