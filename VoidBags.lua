@@ -343,6 +343,14 @@ local function CreateItemButton(parent, bag, slot)
     btn.ahMark:SetTextColor(0, 1, 0)
     btn.ahMark:Hide()
 
+    -- Leftover quest item (VoidQuest's verdict, when it's installed): red X = its quest
+    -- is turned in, safe to destroy; yellow ? = no quest in your log needs it. Bottom-
+    -- left: quest items never carry the upgrade arrow or an AH value. Marks only.
+    btn.leftoverMark = btn:CreateTexture(nil, "OVERLAY", nil, 2)
+    btn.leftoverMark:SetSize(14, 14)
+    btn.leftoverMark:SetPoint("BOTTOMLEFT", 1, 1)
+    btn.leftoverMark:Hide()
+
     -- Cooldown
     btn.cooldown = CreateFrame("Cooldown", name .. "CD", btn, "CooldownFrameTemplate")
     btn.cooldown:SetAllPoints(btn.icon)
@@ -476,6 +484,7 @@ local function UpdateButton(btn, bag, slot, markers)
         btn.protectedMark:Hide()
         btn.upgradeMark:Hide()
         btn.ahMark:Hide()
+        btn.leftoverMark:Hide()
         btn.qualBorder:Hide()
         btn.qualBorder:SetColorTexture(0, 0.78, 1, 0.3)
         btn.hasItem = false
@@ -570,6 +579,22 @@ local function UpdateButton(btn, bag, slot, markers)
     else
         btn.ahMark:Hide()
     end
+
+    -- Leftover quest item (VoidQuest decides; the reason is in the item's tooltip)
+    local verdict
+    if VB:GetConfig("showMarkers") and _G.VoidQuest_LeftoverVerdict then
+        local ok, v = pcall(_G.VoidQuest_LeftoverVerdict, info.itemID)
+        if ok then verdict = v end
+    end
+    if verdict == "done" then
+        btn.leftoverMark:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+        btn.leftoverMark:Show()
+    elseif verdict == "unneeded" then
+        btn.leftoverMark:SetTexture("Interface\\RaidFrame\\ReadyCheck-Waiting")
+        btn.leftoverMark:Show()
+    else
+        btn.leftoverMark:Hide()
+    end
 end
 
 ----------------------------------------------------------------------
@@ -646,6 +671,7 @@ local function ClearButton(btn)
     btn.protectedMark:Hide()
     btn.upgradeMark:Hide()
     btn.ahMark:Hide()
+    btn.leftoverMark:Hide()
     btn.qualBorder:SetColorTexture(0, 0.78, 1, 0.3)
     btn.hasItem = false
 end

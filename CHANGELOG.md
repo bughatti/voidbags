@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.28] — 2026-11-06
+
+### Added
+- **Leftover quest items marked.** With VoidQuest installed, quest items you no longer need get a mark in the corner: a red X when every quest the item was for is turned in (safe to destroy), a yellow ? when no quest in your log needs it but VoidQuest can't be sure what it was for. Hover the item for the reason. Marks only: nothing is destroyed for you.
+
 ## [1.2.27] — 2026-11-06
 
 ### Fixed
