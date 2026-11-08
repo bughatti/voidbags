@@ -392,7 +392,31 @@ local function CreateItemButton(parent, bag, slot)
     btn:SetAttribute("ctrl-type2", "")    -- ctrl+right handled in Lua (split)
     btn:SetAttribute("alt-type2", "")
 
+    -- Left-click while a spell waits for an item target: put the spell on this item, like
+    -- Blizzard's bags (SpellCanTargetItem -> use). WoW Forever's Waylaid Crate works this
+    -- way (right-click the crate, then left-click the goods to pack them; the user,
+    -- 2026-11-08: "our bags dont allow that"), and so do enchants, Disenchant, lockpicking.
+    -- Targeting an item is protected, so it goes through the secure /use for this one
+    -- click (set in PreClick, out of combat only); the Lua handler below then stays out.
+    btn:SetScript("PreClick", function(self, button)
+        self._targetUse = nil
+        -- (Shift / Ctrl clicks stay links and previews, as in Blizzard's bags)
+        if button ~= "LeftButton" or InCombatLockdown() or IsModifiedClick() then return end
+        if (SpellCanTargetItem and SpellCanTargetItem()) or (SpellCanTargetItemID and SpellCanTargetItemID()) then
+            self:SetAttribute("type1", "macro")
+            self:SetAttribute("macrotext1", "/use " .. self.bag .. " " .. self.slot)
+            self._targetUse = true
+        end
+    end)
+    btn:SetScript("PostClick", function(self)
+        if self._targetUse and not InCombatLockdown() then
+            self:SetAttribute("type1", nil)
+            self:SetAttribute("macrotext1", nil)
+        end
+    end)
+
     btn:HookScript("OnClick", function(self, button)
+        if self._targetUse then return end   -- the secure /use put the waiting spell on it
         -- Cursor has item → place it down here regardless of button
         if CursorHasItem() then
             C_Container.PickupContainerItem(self.bag, self.slot)
