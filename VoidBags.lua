@@ -2837,3 +2837,18 @@ end
 -- Keybind support (B key opens bags via backpack functions)
 -- Not hooked separately — ToggleAllBags already handles B key
 ----------------------------------------------------------------------
+
+-- Switches in the Void hub's quick box (left-click the hub; VoidHubBundle.lua)
+VoidHubToggles = VoidHubToggles or {}
+table.insert(VoidHubToggles, {
+    id = "VoidBags.autosell", group = "Bags", label = "Auto-sell junk", order = 1,
+    tip = "Sells your grey items when you open a vendor.",
+    get = function() return VB:GetConfig("autoSellJunk") end,
+    set = function(on) VoidBagsDB.config.autoSellJunk = on and true or false end,
+})
+table.insert(VoidHubToggles, {
+    id = "VoidBags.autorepair", group = "Bags", label = "Auto-repair", order = 2,
+    tip = "Repairs your gear when you open a vendor who can.",
+    get = function() return VB:GetConfig("autoRepair") end,
+    set = function(on) VoidBagsDB.config.autoRepair = on and true or false end,
+})

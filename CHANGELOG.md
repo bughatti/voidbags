@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.30] — 2026-11-07
+
+### Added
+- **Quick switches for auto-sell junk and auto-repair:** left-click the Void hub button by your minimap and a Quick switches box opens next to the addon icons (also `/vquick`).
+
 ## [1.2.29] — 2026-11-07
 
 ### Fixed
