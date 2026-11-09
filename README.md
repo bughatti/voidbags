@@ -1,5 +1,7 @@
 # VoidBags
 
+**Works on:** WoW Midnight · WoW Forever
+
 **Smart bag organizer with auto-categorization, cross-character tracking, and one-click merchant tools.**
 
 VoidBags replaces Blizzard's bags with one unified window that sorts every item into 19 categories automatically. It adds a matching bank panel, cross-character item search, junk auto-sell, auto-repair (optionally from guild funds), and auction-value awareness.
@@ -74,7 +76,7 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 
 ## Getting Started
 
-1. Install with the CurseForge app, or copy the `VoidBags` folder into `World of Warcraft/_retail_/Interface/AddOns/`.
+1. Install with the CurseForge app, or copy the `VoidBags` folder into `World of Warcraft/_retail_/Interface/AddOns/` (WoW Forever: `_forever_/Interface/AddOns/`).
 2. Restart WoW or `/reload`.
 3. Press **B** — VoidBags opens instead of the default bags.
 
@@ -88,8 +90,8 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 
 ## Compatibility
 
-- **WoW 12.1.5** (Midnight Season 2)
-- **WoW Forever** supported too
+- **WoW Midnight** 12.1.5 (Season 2)
+- **WoW Forever**
 - Standalone — nothing else to install
 - Plays nicely with ElvUI, VoidUI, and the default UI
 - Supports the reagent bag and the Warband bank
