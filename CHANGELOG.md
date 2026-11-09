@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.32] — 2026-11-09
+
+- **Fixed: box borders missing a side.** Depending on where a window sat on screen, its left, right or bottom line could vanish. Borders are now exactly one screen pixel and can't round away.
+
 ## [1.2.31] — 2026-11-08
 
 - **Fixed: filling a Waylaid Crate (WoW Forever) from VoidBags.** Right-click the crate, then left-click the goods: VoidBags now puts them in, like the default bags, instead of picking the item up. The same goes for anything else that asks you to pick an item from your bags (enchants, Disenchant, lockpicking). Shift and Ctrl clicks still link and preview.
