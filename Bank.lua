@@ -1731,3 +1731,235 @@ bankHideEf:SetScript("OnEvent", function()
         HideBlizzardBank()
     end
 end)
+
+----------------------------------------------------------------------
+-- The bank anywhere (the user, 2026-11-09: "I bought some recipes and I put them in the bank
+-- but I can't remember which ones they are"): away from a banker, the Bank button shows your
+-- bank and the warband bank as they were the last time you had them open, read-only, from
+-- the snapshots above (VoidBagsDB.characters[key].bank, VoidBagsDB.warband). Grouped by item
+-- type, so Recipes have their own section; search; your other characters' banks too.
+----------------------------------------------------------------------
+do
+    local view, rows, which, filter
+    local ICON, PER_ROW = 34, 10
+
+    local function ago(t)
+        if not t or t <= 0 then return "never" end
+        local s = time() - t
+        if s < 3600 then return math.max(1, math.floor(s / 60)) .. " min ago" end
+        if s < 86400 then return math.floor(s / 3600) .. " h ago" end
+        return math.floor(s / 86400) .. " days ago"
+    end
+
+    -- what to show: { items = {...}, time = t, label = "..." }
+    local function source()
+        if which == "warband" then
+            local w = VoidBagsDB and VoidBagsDB.warband
+            return { items = w and w.items or {}, time = w and w.timestamp, label = "Warband bank" }
+        end
+        local key = which or VB:GetPlayerKey()
+        local rec = VoidBagsDB and VoidBagsDB.characters and VoidBagsDB.characters[key]
+        local name = rec and VB:CharacterLabel(key, rec) or "?"
+        return { items = rec and rec.bank or {}, time = rec and rec.bankTime, label = (name:match("^[^-]+") or name) .. "'s bank" }
+    end
+
+    local function classOf(id)
+        local classID = select(6, C_Item.GetItemInfoInstant(id))
+        local name = classID and C_Item.GetItemClassInfo(classID)
+        return classID or 99, name or "Other"
+    end
+
+    -- recipes first: that's what this was asked for
+    local ORDER = { [9] = 1, [7] = 2, [0] = 3, [5] = 4, [3] = 5, [4] = 6, [2] = 7, [1] = 8, [12] = 9, [15] = 10 }
+
+    local function render()
+        local src = source()
+        view.title:SetText(VB.C_CYAN .. src.label .. "|r  " .. VB.C_DIM .. "as of " .. ago(src.time) .. "|r")
+        -- merge stacks of the same item, then group by item type
+        local q = filter and filter:GetText():lower() or ""
+        local merged, order = {}, {}
+        for _, it in ipairs(src.items) do
+            if it.id then
+                local name = it.name or C_Item.GetItemNameByID(it.id) or ""
+                if q == "" or name:lower():find(q, 1, true) then
+                    local m = merged[it.id]
+                    if not m then
+                        m = { id = it.id, link = it.link, name = name, quality = it.quality, count = 0 }
+                        merged[it.id] = m
+                        order[#order + 1] = m
+                    end
+                    m.count = m.count + (it.count or 1)
+                end
+            end
+        end
+        local groups, gorder = {}, {}
+        for _, m in ipairs(order) do
+            local cid, cname = classOf(m.id)
+            local g = groups[cid]
+            if not g then
+                g = { id = cid, name = cname, list = {} }
+                groups[cid] = g
+                gorder[#gorder + 1] = g
+            end
+            table.insert(g.list, m)
+        end
+        table.sort(gorder, function(a, b) return (ORDER[a.id] or 50) < (ORDER[b.id] or 50) end)
+
+        for _, r in ipairs(rows) do r:Hide() end
+        local child, y, n = view.child, 0, 0
+        local function row(i)
+            local r = rows[i]
+            if not r then
+                r = CreateFrame("Button", nil, child)
+                r:SetSize(ICON, ICON)
+                r.icon = r:CreateTexture(nil, "ARTWORK")
+                r.icon:SetAllPoints()
+                r.count = r:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+                r.count:SetPoint("BOTTOMRIGHT", -2, 2)
+                r.border = r:CreateTexture(nil, "BACKGROUND")
+                r.border:SetPoint("TOPLEFT", -1, 1)
+                r.border:SetPoint("BOTTOMRIGHT", 1, -1)
+                r.border:SetColorTexture(0, 0, 0, 0)
+                r:SetScript("OnEnter", function(self)
+                    if not self.d then return end
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    if self.d.link then GameTooltip:SetHyperlink(self.d.link) else GameTooltip:SetItemByID(self.d.id) end
+                    GameTooltip:Show()
+                end)
+                r:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                r:SetScript("OnClick", function(self)
+                    if self.d and self.d.link and IsModifiedClick("CHATLINK") then ChatEdit_InsertLink(self.d.link) end
+                end)
+                rows[i] = r
+            end
+            return r
+        end
+        local headers = view.headers
+        for _, h in ipairs(headers) do h:Hide() end
+        for gi, g in ipairs(gorder) do
+            local h = headers[gi]
+            if not h then
+                h = child:CreateFontString(nil, "OVERLAY")
+                VB:SetFont(h, 11, "")
+                headers[gi] = h
+            end
+            h:ClearAllPoints()
+            h:SetPoint("TOPLEFT", 2, -y)
+            h:SetText(VB.C_CYAN .. g.name .. "|r " .. VB.C_DIM .. "(" .. #g.list .. ")|r")
+            h:Show()
+            y = y + 18
+            table.sort(g.list, function(a, b) return a.name < b.name end)
+            for k, m in ipairs(g.list) do
+                n = n + 1
+                local r = row(n)
+                r.d = m
+                r:ClearAllPoints()
+                r:SetPoint("TOPLEFT", ((k - 1) % PER_ROW) * (ICON + 4), -(y + math.floor((k - 1) / PER_ROW) * (ICON + 4)))
+                r.icon:SetTexture(C_Item.GetItemIconByID(m.id))
+                r.count:SetText(m.count > 1 and m.count or "")
+                local c = m.quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[m.quality]
+                if c and m.quality >= 2 then r.border:SetColorTexture(c.r, c.g, c.b, 0.7) else r.border:SetColorTexture(0, 0, 0, 0) end
+                r:Show()
+            end
+            y = y + math.ceil(#g.list / PER_ROW) * (ICON + 4) + 6
+        end
+        if #gorder == 0 then
+            view.empty:SetText(src.time and (q ~= "" and "Nothing matches." or "Empty.")
+                or "Not seen yet: open this bank once at a banker and VoidBags remembers it.")
+            view.empty:Show()
+        else
+            view.empty:Hide()
+        end
+        child:SetHeight(math.max(10, y))
+    end
+
+    local function charMenu(owner)
+        if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+        MenuUtil.CreateContextMenu(owner, function(_, root)
+            local me = VB:GetPlayerKey()
+            local any = false
+            for key, data in pairs(VoidBagsDB and VoidBagsDB.characters or {}) do
+                if key ~= me and data.bank and #data.bank > 0 then
+                    any = true
+                    root:CreateButton(VB:CharacterLabel(key, data), function() which = key; render() end)
+                end
+            end
+            if not any then root:CreateTitle("No other character's bank seen yet") end
+        end)
+    end
+
+    local function create()
+        view = CreateFrame("Frame", "VoidBagsBankView", UIParent, "BackdropTemplate")
+        view:SetSize(PER_ROW * (ICON + 4) + 44, 470)
+        view:SetPoint("CENTER", 0, 40)
+        view:SetFrameStrata("HIGH")
+        view:SetClampedToScreen(true)
+        view:SetMovable(true)
+        view:EnableMouse(true)
+        view:RegisterForDrag("LeftButton")
+        view:SetScript("OnDragStart", view.StartMoving)
+        view:SetScript("OnDragStop", view.StopMovingOrSizing)
+        VB:CreateBackdrop(view, "transparent")
+        view:SetBackdropColor(0.04, 0.04, 0.06, 0.96)
+        tinsert(UISpecialFrames, "VoidBagsBankView")   -- Esc closes it
+        view.title = view:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(view.title, 13, "")
+        view.title:SetPoint("TOPLEFT", 12, -10)
+        local close = CreateFrame("Button", nil, view, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", -2, -2)
+
+        local function tab(label, x, onClick)
+            local b = CreateFrame("Button", nil, view, "BackdropTemplate")
+            b:SetSize(100, 18)
+            b:SetPoint("TOPLEFT", x, -34)
+            VB:CreateBackdrop(b, "section")
+            b.text = b:CreateFontString(nil, "OVERLAY")
+            VB:SetFont(b.text, 10, "")
+            b.text:SetPoint("CENTER")
+            b.text:SetText(label)
+            b:SetScript("OnClick", onClick)
+            return b
+        end
+        tab("Your bank", 12, function() which = nil; render() end)
+        tab("Warband bank", 116, function() which = "warband"; render() end)
+        tab("Other characters", 220, function(self) charMenu(self) end)
+
+        filter = CreateFrame("EditBox", nil, view, "InputBoxTemplate")
+        filter:SetSize(80, 18)
+        filter:SetPoint("TOPRIGHT", -16, -34)
+        filter:SetAutoFocus(false)
+        filter:SetScript("OnTextChanged", function() render() end)
+        filter:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        local hint = filter:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        hint:SetPoint("LEFT", 4, 0)
+        hint:SetText("Search")
+        filter:HookScript("OnTextChanged", function(self) hint:SetShown(self:GetText() == "") end)
+
+        local sf = CreateFrame("ScrollFrame", nil, view, "UIPanelScrollFrameTemplate")
+        sf:SetPoint("TOPLEFT", 12, -62)
+        sf:SetPoint("BOTTOMRIGHT", -30, 26)
+        view.child = CreateFrame("Frame", nil, sf)
+        view.child:SetSize(PER_ROW * (ICON + 4), 10)
+        sf:SetScrollChild(view.child)
+        view.headers = {}
+        rows = {}
+        view.empty = view:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(view.empty, 11, "")
+        view.empty:SetPoint("TOP", 0, -90)
+        view.empty:SetWidth(PER_ROW * (ICON + 4) - 20)
+        view.empty:SetTextColor(0.6, 0.6, 0.65)
+        local foot = view:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(foot, 10, "")
+        foot:SetPoint("BOTTOMLEFT", 12, 8)
+        foot:SetText(VB.C_DIM .. "Read-only, as it was the last time you opened it. Shift-click links an item.|r")
+        view:SetScript("OnShow", function() render() end)
+        view:Hide()
+    end
+
+    -- the Bank button (VoidBags.lua's title bar): at a banker the real bank is already up
+    function VB:ToggleBankView()
+        if bankIsOpen then return end
+        if not view then create() end
+        view:SetShown(not view:IsShown())
+    end
+end

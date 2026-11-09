@@ -1390,6 +1390,52 @@ local function CreateBagFrame()
     guildBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     guildBtn:SetScript("OnClick", function() if VB.ToggleGuildBank then VB:ToggleGuildBank() end end)
 
+    -- Bank button: your bank and the warband bank as last seen, anywhere (Bank.lua's
+    -- "bank anywhere"; the user, 2026-11-09: which recipes did I put in the bank?)
+    local bankBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
+    bankBtn:SetSize(42, 18)
+    bankBtn:SetPoint("RIGHT", guildBtn, "LEFT", -4, 0)
+    VB:CreateBackdrop(bankBtn, "section")
+    local bankTxt = bankBtn:CreateFontString(nil, "OVERLAY")
+    VB:SetFont(bankTxt, 10, "")
+    bankTxt:SetPoint("CENTER")
+    bankTxt:SetText(VB.C_DIM .. "Bank|r")
+    bankBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:SetText("Bank", 0, 0.78, 1)
+        GameTooltip:AddLine("Your bank and the warband bank as they were", 0.9, 0.9, 0.9)
+        GameTooltip:AddLine("the last time you opened them, from anywhere.", 0.9, 0.9, 0.9)
+        GameTooltip:Show()
+    end)
+    bankBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    bankBtn:SetScript("OnClick", function() if VB.ToggleBankView then VB:ToggleBankView() end end)
+
+    -- AH button: VoidAH's "Auction House anywhere" (last visit's prices), only when VoidAH is
+    -- installed; VoidBags never requires it (the user, 2026-11-09)
+    if VoidUI and VoidUI.AHAnywhere then
+        local ahBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
+        ahBtn:SetSize(30, 18)
+        ahBtn:SetPoint("RIGHT", bankBtn, "LEFT", -4, 0)
+        VB:CreateBackdrop(ahBtn, "section")
+        local ahTxt = ahBtn:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(ahTxt, 10, "")
+        ahTxt:SetPoint("CENTER")
+        ahTxt:SetText(VB.C_DIM .. "AH|r")
+        ahBtn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:SetText("Auction House", 0, 0.78, 1)
+            GameTooltip:AddLine("VoidAH's prices from your last visit,", 0.9, 0.9, 0.9)
+            GameTooltip:AddLine("from anywhere.", 0.9, 0.9, 0.9)
+            GameTooltip:Show()
+        end)
+        ahBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        ahBtn:SetScript("OnClick", function()
+            -- at an Auctioneer VoidAH's own window is already up
+            if VoidUI.AH and VoidUI.AH.ahOpen then return end
+            VoidUI.AHAnywhere:Toggle()
+        end)
+    end
+
     -- Salvage/profession buttons beside the title: one icon per item-targeting spell this
     -- character KNOWS (Disenchant, Milling, Prospecting, Pick Lock). Click it, then click the
     -- item in the bags -- same as casting the spell from the spellbook. Casting is a protected

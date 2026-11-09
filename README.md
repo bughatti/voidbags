@@ -45,6 +45,10 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 - **Materials for your crafters** (with VoidGather) — the Warband tab lists every crafting material you're carrying that your other characters craft with (their crafting goals first, with exact counts), with one **Deposit for crafters** button. What the character you're on crafts with stays in its bags, except disenchanting materials, which pool for your enchanter. **Take my materials** does the reverse: what in the warband bank this character crafts with, back into its bags. Only crafting materials move (never potions or food), and both lists clear themselves
 - **Buy Tab button** shows the next tab's cost (opens Blizzard's bank to complete the purchase)
 
+### Your bank, anywhere
+- The **Bank** button on the bag window shows your bank and the Warband bank as they were the last time you opened them, from anywhere: grouped by type (recipes first), stacks added up, search, item tooltips, shift-click to link. **Other characters** shows your alts' banks too
+- With **VoidAH** installed, the **AH** button opens the Auction House from your last visit
+
 ### Cross-character inventory
 - **Search every character's bags** for an item with `/vb search`
 - Each character's inventory is snapshotted on logout

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.0] — 2026-11-09
+
+- **Your bank, anywhere.** The new **Bank** button on the bag window shows your bank and the warband bank as they were the last time you opened them, wherever you are: grouped by type (Recipes first), stacks added up, search, item tooltips, shift-click to link. **Other characters** shows your alts' banks too. Read-only; at a banker the real bank is up anyway.
+- **AH button** (with VoidAH installed): opens VoidAH's Auction House from your last visit, from anywhere.
+
 ## [1.2.32] — 2026-11-09
 
 - **Fixed: box borders missing a side.** Depending on where a window sat on screen, its left, right or bottom line could vanish. Borders are now exactly one screen pixel and can't round away.
