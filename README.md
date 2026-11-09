@@ -28,6 +28,7 @@ Equipment · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food 
 ### Item markers at a glance
 - **Item level** on gear and a **green upgrade arrow** on real upgrades — only gear your spec can use, never an off-hand while you hold a two-hander, never a swap that breaks your tier set bonus
 - Letter markers: **L** learnable · **C** a material for your professions · **A** an alt's profession needs it · **$** worth selling on the AH · **T** vendor trash · **P** protected
+- **Items that start a quest** get the yellow **"!"** you know from the default bags, until you take the quest
 - **Leftover quest items** (with **VoidQuest** installed): a **red X** on a quest item whose quests are all turned in (safe to destroy), a **yellow ?** on one no quest in your log needs. Hover it for why. Nothing is ever destroyed for you
 - **Auction value** shown on items worth selling
 

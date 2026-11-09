@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.1] — 2026-11-09
+
+- **Items that start a quest show the "!":** an item you can right-click to start a quest gets the same yellow "!" as in the default bags. It goes away once you take the quest.
+
 ## [1.3.0] — 2026-11-09
 
 - **Your bank, anywhere.** The new **Bank** button on the bag window shows your bank and the warband bank as they were the last time you opened them, wherever you are: grouped by type (Recipes first), stacks added up, search, item tooltips, shift-click to link. **Other characters** shows your alts' banks too. Read-only; at a banker the real bank is up anyway.

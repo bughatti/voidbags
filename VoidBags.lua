@@ -351,6 +351,14 @@ local function CreateItemButton(parent, bag, slot)
     btn.leftoverMark:SetPoint("BOTTOMLEFT", 1, 1)
     btn.leftoverMark:Hide()
 
+    -- Starts a quest you don't have yet: Blizzard's own "!" over the icon, the one players know from
+    -- the default bags (the user, 2026-11-09: "when i get an item i can right click for a quest, it
+    -- never shows the exclamation point").
+    btn.questBang = btn:CreateTexture(nil, "OVERLAY", nil, 3)
+    btn.questBang:SetTexture(TEXTURE_ITEM_QUEST_BANG or "Interface\\ContainerFrame\\UI-Icon-QuestBang")
+    btn.questBang:SetAllPoints(btn.icon)
+    btn.questBang:Hide()
+
     -- Cooldown
     btn.cooldown = CreateFrame("Cooldown", name .. "CD", btn, "CooldownFrameTemplate")
     btn.cooldown:SetAllPoints(btn.icon)
@@ -494,8 +502,18 @@ UPGRADE_ATLAS_FALLBACK = "^"
 ----------------------------------------------------------------------
 -- Update a single button
 ----------------------------------------------------------------------
+-- The quest "!" (see CreateItemButton): the item names a quest, and that quest isn't in your log.
+local function UpdateQuestBang(btn, bag, slot)
+    local f = C_Container and C_Container.GetContainerItemQuestInfo
+    local ok, q = false, nil
+    if f then ok, q = pcall(f, bag, slot) end
+    local starts = ok and type(q) == "table" and q.questID and not q.isActive
+    btn.questBang:SetShown(starts and true or false)
+end
+
 local function UpdateButton(btn, bag, slot, markers)
     local info = C_Container.GetContainerItemInfo(bag, slot)
+    btn.questBang:Hide()
     if not info then
         btn.icon:SetTexture(nil)
         btn.count:SetText("")
@@ -518,6 +536,7 @@ local function UpdateButton(btn, bag, slot, markers)
     btn.hasItem = true
     btn.icon:SetTexture(info.iconFileID)
     btn.icon:SetDesaturated(info.isLocked)
+    UpdateQuestBang(btn, bag, slot)
 
     -- Stack count
     if info.stackCount and info.stackCount > 1 then
@@ -696,6 +715,7 @@ local function ClearButton(btn)
     btn.upgradeMark:Hide()
     btn.ahMark:Hide()
     btn.leftoverMark:Hide()
+    btn.questBang:Hide()
     btn.qualBorder:SetColorTexture(0, 0.78, 1, 0.3)
     btn.hasItem = false
 end
@@ -2291,6 +2311,9 @@ local ef = CreateFrame("Frame")
 ef:RegisterEvent("ADDON_LOADED")
 ef:RegisterEvent("BAG_UPDATE")
 ef:RegisterEvent("BAG_UPDATE_DELAYED")
+-- the quest "!" goes away once you take the quest (and comes back if you abandon it)
+pcall(ef.RegisterEvent, ef, "QUEST_ACCEPTED")
+pcall(ef.RegisterEvent, ef, "QUEST_REMOVED")
 ef:RegisterEvent("ITEM_LOCK_CHANGED")
 ef:RegisterEvent("BAG_UPDATE_COOLDOWN")
 ef:RegisterEvent("PLAYER_MONEY")
@@ -2444,7 +2467,8 @@ ef:SetScript("OnEvent", function(_, event, arg1)
         return
     end
 
-    if event == "BAG_UPDATE" or event == "BAG_UPDATE_DELAYED" or event == "ITEM_LOCK_CHANGED" then
+    if event == "BAG_UPDATE" or event == "BAG_UPDATE_DELAYED" or event == "ITEM_LOCK_CHANGED"
+       or event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" then
         DebouncedRefresh()
         return
     end
