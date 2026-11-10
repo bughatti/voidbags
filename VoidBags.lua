@@ -900,7 +900,7 @@ local function LayoutBags()
         slotText:SetText(VB.C_DIM .. usedSlots .. "/" .. totalSlots .. "|r")
     end
     if goldText then
-        goldText:SetText(VB:FormatMoney(GetMoney()))
+        goldText:SetText(VB:FormatMoneyFull(GetMoney()))
     end
     UpdateCurrencyText()
 
@@ -1066,7 +1066,7 @@ local function SellJunk(includeTrash)
     end
 
     if count > 0 then
-        print(VB.C_CYAN .. "[VoidBags]|r Sold " .. count .. " junk items for " .. VB:FormatMoney(total))
+        print(VB.C_CYAN .. "[VoidBags]|r Sold " .. count .. " junk items for " .. VB:FormatMoneyFull(total))
         if #soldNames > 0 then
             print(VB.C_DIM .. "  " .. table.concat(soldNames, ", ") .. "|r")
             print(VB.C_DIM .. "  Sold something by mistake? It's in the vendor's Buyback tab. Hover an item + /vb protect to keep it.|r")
@@ -2494,7 +2494,7 @@ ef:SetScript("OnEvent", function(_, event, arg1)
 
     if event == "PLAYER_MONEY" then
         if goldText and isOpen then
-            goldText:SetText(VB:FormatMoney(GetMoney()))
+            goldText:SetText(VB:FormatMoneyFull(GetMoney()))
         end
         return
     end
@@ -2868,7 +2868,7 @@ SlashCmdList["VOIDBAGS"] = function(msg)
                 local cc = classColor and classColor.colorStr or "ffffffff"
                 local ago = time() - (c.data.timestamp or 0)
                 local agoStr = ago < 3600 and (math.floor(ago / 60) .. "m ago") or (math.floor(ago / 3600) .. "h ago")
-                print("  |c" .. cc .. c.label .. "|r  ilvl " .. (c.data.ilvl or "?") .. "  " .. VB:FormatMoney(c.data.money or 0) .. "  " .. VB.C_DIM .. agoStr .. "|r")
+                print("  |c" .. cc .. c.label .. "|r  ilvl " .. (c.data.ilvl or "?") .. "  " .. VB:FormatMoneyFull(c.data.money or 0) .. "  " .. VB.C_DIM .. agoStr .. "|r")
             end
         end
         return

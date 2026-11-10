@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] — 2026-11-10
+
+### Changed
+- **Your money shows gold, silver and copper,** like Blizzard's bags (and in the junk-sold line and your characters' gold).
+
+### Fixed (WoW Forever)
+- **Your materials are never trash:** a material a Forever recipe of one of your professions (or an alt's) uses stays in your profession materials, even Classic gems the old rules called Jewelcrafting-only. First Aid counts as a profession.
+
 ## [1.3.1] — 2026-11-09
 
 - **Items that start a quest show the "!":** an item you can right-click to start a quest gets the same yellow "!" as in the default bags. It goes away once you take the quest.

@@ -137,6 +137,24 @@ function VB:FormatMoney(copper)
     end
 end
 
+-- The money you hold, every coin like Blizzard's bags ("1,234g 45s 12c"): the bag footer.
+-- FormatMoney above stays short for prices. The user, 2026-11-09: "blizz bags correctly show
+-- gold, silver and copper i have, ours does not".
+function VB:FormatMoneyFull(copper)
+    copper = math.floor(tonumber(copper) or 0)
+    local gold = math.floor(copper / 10000)
+    local silver = math.floor((copper % 10000) / 100)
+    local cop = copper % 100
+    local parts = {}
+    if gold > 0 then
+        local g = BreakUpLargeNumbers and BreakUpLargeNumbers(gold) or tostring(gold)
+        parts[#parts + 1] = VB.C_GOLD .. g .. "g|r"
+    end
+    if gold > 0 or silver > 0 then parts[#parts + 1] = VB.C_SILVER .. silver .. "s|r" end
+    parts[#parts + 1] = VB.C_COPPER .. cop .. "c|r"
+    return table.concat(parts, " ")
+end
+
 function VB:FormatNumber(n)
     if not n then return "0" end
     if n >= 1000000 then
@@ -284,13 +302,11 @@ VB.playerProfs = {}
 
 function VB:UpdateProfessions()
     wipe(self.playerProfs)
-    -- GetProfessions returns up to 5 sparse positional values:
-    --   prof1, prof2, archaeology(removed in 12.0), fishing, cooking
-    -- ipairs stops at first nil, so iterate explicitly via select.
-    local raw = { select(1, GetProfessions()), select(2, GetProfessions()),
-                  select(3, GetProfessions()), select(4, GetProfessions()),
-                  select(5, GetProfessions()) }
-    for i = 1, 5 do
+    -- GetProfessions returns sparse positional values: prof1, prof2, archaeology (removed
+    -- in 12.0), fishing, cooking, and on WoW Forever First Aid after them.
+    -- ipairs stops at the first nil, so index each explicitly.
+    local raw = { GetProfessions() }
+    for i = 1, 8 do
         local idx = raw[i]
         if idx then
             local name, _, _, _, _, _, skillLine = GetProfessionInfo(idx)
@@ -314,13 +330,16 @@ function VB:UpdateProfessions()
     end
 end
 
-function VB:AltHasProfessionFor(subClassName)
+-- foreverUsers (optional, WoW Forever): { [profName] = true } from ForeverReagents.lua -- the
+-- professions with a Forever recipe that uses the item; checked before the subclass guess.
+function VB:AltHasProfessionFor(subClassName, foreverUsers)
     if not VoidBagsDB or not VoidBagsDB.characters then return false, nil end
     local myKey = self:GetPlayerKey()
 
     for charKey, charData in pairs(VoidBagsDB.characters) do
         if charKey ~= myKey and charData.professions then
             for profName in pairs(charData.professions) do
+                if foreverUsers and foreverUsers[profName] then return true, charKey end
                 if profName and type(profName) == "string" then
                     local found = false
                     -- Check if this profession uses this reagent subclass

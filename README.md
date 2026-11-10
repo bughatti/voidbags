@@ -13,7 +13,8 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 ### One window for everything
 - **Backpack, bags 1–4, and the reagent bag** together in one frame
 - Resizable and draggable — the position is remembered
-- **Free slots and your gold** shown in the header
+- **Free slots and your money** (gold, silver and copper) shown in the header
+- **WoW Forever:** materials a Forever recipe of one of your professions (or an alt's) uses are never marked as trash, Classic gems included
 - **Currencies next to your gold**: Coffer Keys and Key Shards (with this week's progress), this season's upgrade crests, plus anything you've set to "Show on Backpack". Hover for details
 - **Bag swapping** — drag a bag onto the bag bar to equip it, drag it out to remove it
 - **Settings** behind the gear icon in the title bar

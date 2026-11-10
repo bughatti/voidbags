@@ -65,6 +65,7 @@ local PROF_REAGENT_MAP = {
     ["Engineering"]     = { "Parts", "Metal & Stone", "Engineering", "Optional Reagents", "Finishing Reagents" },
     ["Cooking"]         = { "Cooking", "Meat", "Fish" },
     ["Fishing"]         = { "Fish" },
+    ["First Aid"]       = { "Cloth" },   -- WoW Forever: bandages are cloth
 }
 
 local REAGENT_TO_PROF = {}
@@ -645,6 +646,28 @@ function VB:CategorizeItem(bag, slot)
     -- Item Enhancement (weapon oils, armor kits, enchant vellums)
     if classID == Enum.ItemClass.ItemEnhancement then
         return "Consumables", markers
+    end
+
+    -- WoW Forever: a material a Forever recipe uses (ForeverReagents.lua, generated from Forever's
+    -- own recipes) is yours if one of your professions uses it, an alt's if one of theirs does.
+    -- The retail subclass map below calls Classic gems Jewelcrafting-only, so a blacksmith's
+    -- Tigerseye was vendor trash (audit, 2026-11-09).
+    local foreverUsers = IS_FOREVER and VB.FOREVER_REAGENTS and VB.FOREVER_REAGENTS[itemID]
+    if foreverUsers then
+        for prof in pairs(foreverUsers) do
+            if VB.playerProfs[prof] then
+                markers.craftable = true
+                if prof == "Cooking" then return "CookingMats", markers end
+                if prof == "Alchemy" and subClassName == "Herb" then return "AlchemyMats", markers end
+                return "MyProfMats", markers
+            end
+        end
+        local altNeeds, altName = VB:AltHasProfessionFor(subClassName, foreverUsers)
+        if altNeeds then
+            markers.altNeeds = true
+            markers.altName = altName
+            return "SellableReagents", markers
+        end
     end
 
     -- Gems
