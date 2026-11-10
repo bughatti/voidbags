@@ -8,6 +8,8 @@ local _, VB = ...
 ----------------------------------------------------------------------
 VB.CATEGORIES = {
     Equipment          = { order = 1,  label = "Equipment",          color = VB.palette.accent },
+    -- WoW Forever: tools and class items this character needs (ForeverTools.lua); never sold by VoidBags or VoidAH
+    Tools              = { order = 1.5, label = "Tools & Class Items", color = { 0.85, 0.75, 0.55 } },
     Warband            = { order = 2,  label = "Warband",            color = { 1.00, 0.78, 0.20 } },  -- gold (matches Blizzard warband tint)
     Cosmetic           = { order = 3,  label = "Cosmetic",           color = { 1.00, 0.50, 0.95 } },
     Flasks             = { order = 4,  label = "Flasks",             color = { 0.20, 0.85, 1.00 } },
@@ -510,6 +512,14 @@ function VB:CategorizeItem(bag, slot)
     local override = GetItemOverride(itemID)
     if override and VB.CATEGORIES[override] then
         return override, markers
+    end
+
+    -- A tool / class item this character needs (Mining Pick, fishing pole, Flash Powder...): its own
+    -- category, kept like a protected item (never junk, never sold)
+    local toolFor = VB.ToolKept and VB.ToolKept(bag, slot)   -- this copy (one per kind is kept)
+    if toolFor then
+        markers.protected = true
+        return "Tools", markers
     end
 
     -- Junk (grey quality) — unless protected

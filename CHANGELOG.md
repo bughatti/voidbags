@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0] — 2026-11-10
+
+### Added (WoW Forever)
+- **Tools & Class Items: what you need can't be sold by accident.** Your profession tools (Mining Pick, Skinning Knife, Blacksmith Hammer, enchanting rods, Arclight Spanner...), your fishing pole, Flint and Tinder, Simple Wood and campfire kits, and your class's items (rogue Thieves' Tools, Flash Powder, Blinding Powder and poisons; mage, priest, druid, paladin, shaman and warlock reagents) get their own category, marked **P**. A right-click at a vendor won't sell them (chat says why) and Sell Junk skips them.
+- **One copy of each tool is kept:** the one you hold, else the best one in your bags, so a spare pole or pick from an upgrade can still be sold. Stacks (powder, poisons, wood) are always kept whole.
+- **To sell a kept item on purpose,** drag it onto the vendor window.
+
 ## [1.4.0] — 2026-11-10
 
 ### Changed

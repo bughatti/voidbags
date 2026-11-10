@@ -408,6 +408,23 @@ local function CreateItemButton(parent, bag, slot)
     -- click (set in PreClick, out of combat only); the Lua handler below then stays out.
     btn:SetScript("PreClick", function(self, button)
         self._targetUse = nil
+        -- A plain right-click at a vendor SELLS the item. Kept items (a tool / class item you need, see
+        -- ForeverTools.lua, or one you protected) don't go: the secure /use is switched off for this one
+        -- click. The user, 2026-11-10, lost the fishing pole and nearly the Mining Pick that way.
+        if button == "RightButton" and not IsModifiedClick() and not InCombatLockdown()
+            and MerchantFrame and MerchantFrame:IsShown() then
+            local info = C_Container.GetContainerItemInfo(self.bag, self.slot)
+            local id = info and info.itemID
+            if id and not VoidLib.Secrets.IsSecret(id) then
+                local why = (VB.ToolKept and VB.ToolKept(self.bag, self.slot))
+                    or (VoidBagsDB and VoidBagsDB.protected and VoidBagsDB.protected[id] and "protected")
+                if why then
+                    self:SetAttribute("type2", nil)
+                    self._keptBlock = why
+                end
+            end
+            return
+        end
         -- (Shift / Ctrl clicks stay links and previews, as in Blizzard's bags)
         if button ~= "LeftButton" or InCombatLockdown() or IsModifiedClick() then return end
         if (SpellCanTargetItem and SpellCanTargetItem()) or (SpellCanTargetItemID and SpellCanTargetItemID()) then
@@ -420,6 +437,15 @@ local function CreateItemButton(parent, bag, slot)
         if self._targetUse and not InCombatLockdown() then
             self:SetAttribute("type1", nil)
             self:SetAttribute("macrotext1", nil)
+        end
+        if self._keptBlock then
+            local why = self._keptBlock
+            self._keptBlock = nil
+            if not InCombatLockdown() then self:SetAttribute("type2", "macro") end
+            local link = C_Container.GetContainerItemLink(self.bag, self.slot)
+            print(VB.C_CYAN .. "[VoidBags]|r Kept " .. (link or "it") .. ": "
+                .. (why == "protected" and "you protected it" or ("you need it (" .. why .. ")"))
+                .. ". To sell it anyway, drag it onto the vendor window.")
         end
     end)
 
@@ -1031,7 +1057,8 @@ local function SellJunk(includeTrash)
         for slot = 1, numSlots do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             local cleanID = info and info.itemID and not VoidLib.Secrets.IsSecret(info.itemID) and info.itemID
-            if info and not (cleanID and protected[cleanID]) then   -- protected items are never sold
+            -- protected items, and tools / class items this character needs (ForeverTools.lua), are never sold
+            if info and not (cleanID and (protected[cleanID] or (VB.ToolKept and VB.ToolKept(bag, slot)))) then
                 local shouldSell = false
                 -- Always sell grey junk
                 if info.quality == 0 then
@@ -2171,6 +2198,30 @@ end
 
 -- Toggle "protected" (P) on an item: never marked T/Junk, never auto-sold.
 -- Shared by Alt+Right-click on a bag slot and /vb protect.
+-- Developer self-test (2026-11-10): every item in your bags with whether it's kept as a tool / class item,
+-- why, and the category it lands in, saved to VoidBagsDB.toolTest (/run VoidBags:ToolSelfTest(), then /reload).
+function VB:ToolSelfTest()
+    local out = { class = select(2, UnitClass("player")), profs = {}, items = {} }
+    local list = { GetProfessions() }
+    for i = 1, 5 do
+        if list[i] then out.profs[#out.profs + 1] = (GetProfessionInfo(list[i])) end
+    end
+    for _, bag in ipairs(ALL_BAGS) do
+        for slot = 1, C_Container.GetContainerNumSlots(bag) do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info and info.itemID and not VoidLib.Secrets.IsSecret(info.itemID) then
+                local ok, cat = pcall(VB.CategorizeItem, VB, bag, slot)
+                -- needed: the KIND is needed; kept: THIS copy is the one kept (one per kind; stackables all)
+                out.items[#out.items + 1] = ("%d %s | needed: %s | kept: %s | %s"):format(info.itemID,
+                    C_Item.GetItemNameByID(info.itemID) or "?", tostring(VB.ToolNeeded and VB.ToolNeeded(info.itemID)),
+                    tostring(VB.ToolKept and VB.ToolKept(bag, slot)), ok and tostring(cat) or "error")
+            end
+        end
+    end
+    VoidBagsDB.toolTest = out
+    print(VB.C_CYAN .. "[VoidBags]|r tool self-test saved (" .. #out.items .. " items); /reload to write it.")
+end
+
 function VB:ToggleProtect(itemID)
     if not itemID then return end
     VoidBagsDB.protected = VoidBagsDB.protected or {}
