@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.1] — 2026-11-11
+
+### Changed
+- **The Void hub button on the minimap opens one panel now:** every Void addon you have, by name, grouped by what it helps with, with its on/off switches right under it. It replaces the ring of unnamed icons and the separate Quick switches box. A **Background** slider at the bottom makes the panel see-through (names and switches stay solid). On WoW Forever, Void addons that do nothing there are left out. The hub button has a cyan ring so it's easy to tell apart from other addons' buttons.
+
 ## [1.5.0] — 2026-11-10
 
 ### Added (WoW Forever)
