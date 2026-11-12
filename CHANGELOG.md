@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.3] — 2026-11-12
+
+- **Fixed: a side of a box could be missing**, e.g. the right line of the recipes box and its buttons when the game window is an odd number of pixels wide. Every Void box now always shows all four border lines.
+
 ## [1.5.2] — 2026-11-12
 
 - **The bank window keeps its size and spot** after a restart, and the bags keep their spot after you resize them. Resetting the layout puts the bank and guild bank back too.
