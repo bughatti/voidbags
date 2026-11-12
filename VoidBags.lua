@@ -1767,6 +1767,9 @@ local function CreateBagFrame()
         if InCombatLockdown() then return end
         f:StopMovingOrSizing()
         VoidBagsDB.config.size = { w = f:GetWidth(), h = f:GetHeight() }
+        -- sizing re-anchors the window: keep where it is now, or a restart puts it elsewhere (11-12)
+        local point, _, relPoint, x, y = f:GetPoint(1)
+        if point then VoidBagsDB.config.position = { point = point, relPoint = relPoint, x = x, y = y } end
         layoutDirty = true
         LayoutBags()
     end)
@@ -2650,6 +2653,9 @@ SlashCmdList["VOIDBAGS"] = function(msg)
         VoidBagsDB.config.position = nil
         VoidBagsDB.config.size = nil
         VoidBagsDB.config.bankPosition = nil
+        VoidBagsDB.config.bankSize = nil
+        VoidBagsDB.config.guildPosition = nil
+        if VoidBagsDB.positions then VoidBagsDB.positions.bankView = nil end
         if bagFrame then
             bagFrame:ClearAllPoints()
             bagFrame:SetPoint("RIGHT", UIParent, "RIGHT", -20, 0)

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.2] — 2026-11-12
+
+- **The bank window keeps its size and spot** after a restart, and the bags keep their spot after you resize them. Resetting the layout puts the bank and guild bank back too.
+- The Void hub's info window now stays where you put it.
+
 ## [1.5.1] — 2026-11-11
 
 ### Changed

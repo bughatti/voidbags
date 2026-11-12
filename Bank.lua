@@ -1,6 +1,7 @@
 ----------------------------------------------------------------------
 -- VoidBags: Bank — bank frame, warband bank, cross-char viewer
 ----------------------------------------------------------------------
+local _, ns = ...   -- ns.Move (VoidMove.lua)
 local _, VB = ...
 
 local P = VB.palette
@@ -1005,6 +1006,9 @@ local function CreateBankFrame()
     f:SetScript("OnReceiveDrag", DropHere)
     f:SetScript("OnMouseUp", DropHere)
 
+    -- the saved size (it was saved but never read back; found 11-12)
+    local bs = VoidBagsDB and VoidBagsDB.config and VoidBagsDB.config.bankSize
+    if type(bs) == "table" and tonumber(bs.w) and tonumber(bs.h) then f:SetSize(bs.w, bs.h) end
     if VoidBagsDB and VoidBagsDB.config and VoidBagsDB.config.bankPosition then
         local pos = VoidBagsDB.config.bankPosition
         f:ClearAllPoints()
@@ -1483,6 +1487,9 @@ local function CreateBankFrame()
         if InCombatLockdown() then return end
         f:StopMovingOrSizing()
         VoidBagsDB.config.bankSize = { w = f:GetWidth(), h = f:GetHeight() }
+        -- sizing re-anchors the window: keep where it is now, or a restart puts it back
+        local point, _, relPoint, x, y = f:GetPoint(1)
+        if point then VoidBagsDB.config.bankPosition = { point = point, relPoint = relPoint, x = x, y = y } end
         if f.activeTab == "bank" then
             LayoutBank(BANK_BAG_IDS)
         end
@@ -1899,6 +1906,7 @@ do
         view:RegisterForDrag("LeftButton")
         view:SetScript("OnDragStart", view.StartMoving)
         view:SetScript("OnDragStop", view.StopMovingOrSizing)
+        ns.Move(view, { db = function() return VoidBagsDB end, key = "bankView" })   -- drag + kept after a restart (VoidMove.lua)
         VB:CreateBackdrop(view, "transparent")
         view:SetBackdropColor(0.04, 0.04, 0.06, 0.96)
         tinsert(UISpecialFrames, "VoidBagsBankView")   -- Esc closes it

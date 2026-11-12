@@ -1,4 +1,4 @@
-# VoidBags
+# VoidBags - Bags, Bank & Inventory Organizer
 
 **Works on:** WoW Midnight · WoW Forever
 
@@ -105,4 +105,4 @@ Equipment · **Tools & Class Items** (WoW Forever) · **Warband** · **Cosmetic*
 
 ---
 
-*Part of the Void addon family by Vede · MIT licensed · [Source & bug reports](https://github.com/bughatti/voidbags) · [All Void addons](https://www.curseforge.com/members/bughatti/projects) · free M+ & raid player lookups at [voidscout.io](https://voidscout.io) · more at [tinkerline.io](https://tinkerline.io) · [Discord](https://discord.gg/7ZHmx7zMDh)*
+*Part of the Void addon family by Vede · MIT licensed · [Source & bug reports](https://github.com/bughatti/voidbags) · [All Void addons](https://www.curseforge.com/members/bughatti/projects) · free M+ & raid player lookups at [voidscout.io](https://voidscout.io) · more at [tinkerline.io](https://tinkerline.io/addons/voidbags/) · [Discord](https://discord.gg/7ZHmx7zMDh)*
