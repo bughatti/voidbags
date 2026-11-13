@@ -4,7 +4,7 @@
 
 **Smart bag organizer with auto-categorization, cross-character tracking, and one-click merchant tools.**
 
-VoidBags replaces Blizzard's bags with one unified window that sorts every item into 19 categories automatically (20 on WoW Forever). It adds a matching bank panel, cross-character item search, junk auto-sell, auto-repair (optionally from guild funds), and auction-value awareness.
+VoidBags replaces Blizzard's bags with one unified window that sorts every item into 19 categories automatically (21 on WoW Forever). It adds a matching bank panel, cross-character item search, junk auto-sell, auto-repair (optionally from guild funds), and auction-value awareness.
 
 ---
 
@@ -21,7 +21,7 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 - **Disenchant, Milling, Prospecting and Pick Lock buttons** next to the title — only the ones your character knows. Click the button, then the item
 
 ### Automatic categories
-Equipment · **Tools & Class Items** (WoW Forever) · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food & Drink** · **Knowledge** · Consumables · Quest Items · Keys · **Delves** · **Alchemy Mats** · **Cooking Mats** · **Jewelcrafting Mats** · Other Profession Mats · Craftable · Sell / Other Mats · Junk · Miscellaneous
+Equipment · **Tools & Class Items** (WoW Forever) · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food & Drink** · **Camping** (WoW Forever) · **Knowledge** · Consumables · Quest Items · Keys · **Delves** · **Alchemy Mats** · **Cooking Mats** · **Jewelcrafting Mats** · Other Profession Mats · Craftable · Sell / Other Mats · Junk · Miscellaneous
 
 - **Knowledge** collects profession knowledge items you still have to use (right-click) to get the points: treasures, weekly drops, treatises and books, for every profession
 - **Delves** collects delve items such as the weekly bounty map and coffer keys
@@ -37,7 +37,8 @@ Equipment · **Tools & Class Items** (WoW Forever) · **Warband** · **Cosmetic*
 - **Auto-sell junk** when you open a vendor, plus AH-trash reagents below your price threshold
 - **Auto-repair**, optionally using guild-bank funds
 - **Protected items** — **Alt+Right-click** an item in your bags (middle-click in the bank) to protect it; VoidBags will never mark it as junk or sell it
-- **WoW Forever: Tools & Class Items.** What your character needs is kept in its own category and can't be sold by accident: your profession tools (Mining Pick, Skinning Knife, Blacksmith Hammer, enchanting rods...), your fishing pole, Flint and Tinder, Simple Wood and campfire kits, and your class's items (rogue Thieves' Tools, Flash Powder and poisons; mage, priest, druid, paladin, shaman and warlock reagents). A right-click at a vendor won't sell them and Sell Junk skips them. **One copy of each tool is kept** (the one you hold, else the best one), so a spare pole or pick can still be sold; stacks are always kept whole. To sell a kept item on purpose, drag it onto the vendor window
+- **WoW Forever: Tools & Class Items.** What your character needs is kept in its own category and can't be sold by accident: your profession tools (Mining Pick, Skinning Knife, Blacksmith Hammer, enchanting rods...), your fishing pole, Flint and Tinder and Simple Wood, and your class's items (rogue Thieves' Tools, Flash Powder and poisons; mage, priest, druid, paladin, shaman and warlock reagents). A right-click at a vendor won't sell them and Sell Junk skips them. **One copy of each tool is kept** (the one you hold, else the best one), so a spare pole or pick can still be sold; stacks are always kept whole. To sell a kept item on purpose, drag it onto the vendor window
+- **WoW Forever: Camping.** Camp items get their own category so you can tell what to keep: campfire kits, camp features (Rock Garden, Greenhouse, Lodestone, Incense Candle, Cookie's Feast...) and the Cozy Sleeping Bag. They are kept, and Sell Junk never sells them. The list comes from Blizzard's own Camping recipes for every profession.
 
 ### Bank and Warband bank
 - A **companion bank panel** with the same categories

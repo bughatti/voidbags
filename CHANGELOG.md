@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.0] — 2026-11-13
+
+- **WoW Forever: a Camping category.** Camp items now sit together under Food & Drink, so you can tell what to keep: campfire kits, camp features (Rock Garden, Greenhouse, Lodestone, Incense Candle, Cookie's Feast and the rest) and the Cozy Sleeping Bag. They are kept like protected items and Sell Junk never sells them. The list comes from Blizzard's own Camping recipes for every profession (40 items).
+
 ## [1.5.3] — 2026-11-12
 
 - **Fixed: a side of a box could be missing**, e.g. the right line of the recipes box and its buttons when the game window is an odd number of pixels wide. Every Void box now always shows all four border lines.

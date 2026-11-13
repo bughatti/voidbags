@@ -1057,8 +1057,10 @@ local function SellJunk(includeTrash)
         for slot = 1, numSlots do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             local cleanID = info and info.itemID and not VoidLib.Secrets.IsSecret(info.itemID) and info.itemID
-            -- protected items, and tools / class items this character needs (ForeverTools.lua), are never sold
-            if info and not (cleanID and (protected[cleanID] or (VB.ToolKept and VB.ToolKept(bag, slot)))) then
+            -- protected items, tools / class items this character needs (ForeverTools.lua) and Forever camp
+            -- items (ForeverCamp.lua) are never sold
+            if info and not (cleanID and (protected[cleanID] or (VB.ToolKept and VB.ToolKept(bag, slot))
+                or (VB.FOREVER_CAMP and VB.FOREVER_CAMP[cleanID]))) then
                 local shouldSell = false
                 -- Always sell grey junk
                 if info.quality == 0 then

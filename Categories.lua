@@ -15,6 +15,8 @@ VB.CATEGORIES = {
     Flasks             = { order = 4,  label = "Flasks",             color = { 0.20, 0.85, 1.00 } },
     Potions            = { order = 5,  label = "Potions",            color = { 1.00, 0.40, 0.20 } },
     Food               = { order = 6,  label = "Food & Drink",       color = { 0.40, 0.90, 0.30 } },
+    -- WoW Forever: camp items (ForeverCamp.lua, from Blizzard's Camping recipes): kept, never sold as junk
+    Camping            = { order = 6.2, label = "Camping",           color = { 0.95, 0.60, 0.30 } },
     -- Knowledge: profession knowledge you still have to USE (right-click) to get the points.
     Knowledge          = { order = 6.5, label = "Knowledge",         color = { 1.00, 0.85, 0.35 } },
     Consumables        = { order = 7,  label = "Consumables",        color = VB.palette.green },
@@ -512,6 +514,15 @@ function VB:CategorizeItem(bag, slot)
     local override = GetItemOverride(itemID)
     if override and VB.CATEGORIES[override] then
         return override, markers
+    end
+
+    -- WoW Forever camp items (campfire kits, Rock Garden, Lodestone, Cookie's Feast, the Cozy Sleeping
+    -- Bag...): one Camping category, kept like a protected item. The user, 2026-11-13: "im getting comfused
+    -- on items that i need to keep and can get rid of". The sleeping bag (an XP item from a quest chain) is
+    -- blue in game; Blizzard's item data files it as Miscellaneous / Junk, so it never sorted with the rest.
+    if VB.FOREVER_CAMP and VB.FOREVER_CAMP[itemID] then
+        markers.protected = true
+        return "Camping", markers
     end
 
     -- A tool / class item this character needs (Mining Pick, fishing pole, Flash Powder...): its own
