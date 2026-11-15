@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.1] — 2026-11-15
+
+- **Fixed: an item with nothing on it for your class got the green upgrade arrow** when its item level was higher. A Purified Ring (+12 Intellect, spell damage) showed as an upgrade for a Rogue over Seal of Sylvanas. With VoidGear installed, an item worth nothing to you is never an upgrade now, and one you wear that's worth nothing to you is replaced by anything useful.
+
 ## [1.6.0] — 2026-11-13
 
 - **WoW Forever: a Camping category.** Camp items now sit together under Food & Drink, so you can tell what to keep: campfire kits, camp features (Rock Garden, Greenhouse, Lodestone, Incense Candle, Cookie's Feast and the rest) and the Cozy Sleeping Bag. They are kept like protected items and Sell Junk never sells them. The list comes from Blizzard's own Camping recipes for every profession (40 items).

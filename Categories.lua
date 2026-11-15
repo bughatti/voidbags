@@ -298,8 +298,11 @@ local function GearScore(link)
     if type(breakdown) == "table" and breakdown.Effects then
         score = score - breakdown.Effects
     end
-    if score > 0 then return score end
-    return nil
+    -- 0 is an answer: nothing on it your class / spec uses. It used to come back as nil ("can't
+    -- score"), and the caller then fell back to item level: a Purified Ring (+12 Intellect, spell
+    -- damage) got the green arrow over a rogue's Seal of Sylvanas for its higher item level (the
+    -- user, 2026-11-15).
+    return math.max(0, score)
 end
 
 -- Trinket comparison. With VoidGear loaded, rank by its per-spec trinket tiers
@@ -447,6 +450,8 @@ function VB:IsUpgrade(bag, slot, itemLink)
     local bagScore = GearScore(itemLink)
     local eqScore = GearScore(GetInventoryItemLink("player", replaceSlot))
     if bagScore and eqScore then
+        if bagScore <= 0 then return false, 0 end              -- nothing on it you use
+        if eqScore <= 0 then return true, 100 end              -- what you wear does nothing for you
         local pct = ((bagScore - eqScore) / eqScore) * 100
         return pct > 0, pct
     end
