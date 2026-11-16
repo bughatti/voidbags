@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.2] — 2026-11-16
+
+- **Fixed: your bags could open behind other Void windows.** They now open in front, and come forward when you click them.
+
 ## [1.6.1] — 2026-11-15
 
 - **Fixed: an item with nothing on it for your class got the green upgrade arrow** when its item level was higher. A Purified Ring (+12 Intellect, spell damage) showed as an upgrade for a Rogue over Seal of Sylvanas. With VoidGear installed, an item worth nothing to you is never an upgrade now, and one you wear that's worth nothing to you is replaced by anything useful.

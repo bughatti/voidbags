@@ -1271,6 +1271,9 @@ local function CreateBagFrame()
     f:SetPoint("RIGHT", UIParent, "RIGHT", -20, 0)
     f:SetFrameStrata("HIGH")
     f:SetFrameLevel(100)
+    -- toplevel: Raise() only reorders toplevel frames, and toplevel Void windows drew over the
+    -- bags whatever their level (measured on the son's PC, 2026-11-16). Set here, out of combat.
+    f:SetToplevel(true)
     f:EnableMouse(true)
     f:SetPropagateKeyboardInput(true)
     VB:CreateBackdrop(f, "transparent")
@@ -1852,6 +1855,7 @@ local function VisualShow(frame)
     frame:SetAlpha(1)
     frame:EnableMouse(true)
     frame:SetFrameStrata("HIGH")
+    frame:Raise()   -- in front of Void windows opened before it (opened behind VoidBounty, 2026-11-16)
     if frame._mouseBlocker then
         frame._mouseBlocker:SetFrameStrata("HIGH")
         frame._mouseBlocker:Hide()
