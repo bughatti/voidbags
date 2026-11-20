@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.3] — 2026-11-20
+
+- **Fixed: the $ "sell on the Auction House" mark and AH values never showed.** VoidBags asked VoidAH for prices the wrong way and always got nothing back. Items worth selling on the Auction House are marked again (with VoidAH installed).
+
 ## [1.6.2] — 2026-11-16
 
 - **Fixed: your bags could open behind other Void windows.** They now open in front, and come forward when you click them.

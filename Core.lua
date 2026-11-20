@@ -303,7 +303,9 @@ end
 
 function VB:GetAHPrice(itemID)
     if VoidUI and VoidUI.AH and VoidUI.AH.GetPrice then
-        return VoidUI.AH.GetPrice(itemID)
+        -- a METHOD call: VoidUI.AH.GetPrice(itemID) passed the item as `self` and no item, so VoidBags never got a
+        -- VoidAH price and the $ marker / AH value never showed (found 2026-11-20)
+        return VoidUI.AH:GetPrice(itemID)
     end
     if VoidUIAuctionDB and VoidUIAuctionDB.prices then
         return VoidUIAuctionDB.prices[itemID]
