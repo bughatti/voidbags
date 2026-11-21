@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.4] — 2026-11-21
+
+- **Fixed on WoW Forever: per-character settings.** The game stopped telling addons your realm's name, so your character's own settings were no longer loaded or saved. They are again, from where they were saved before.
+
 ## [1.6.3] — 2026-11-20
 
 - **Fixed: the $ "sell on the Auction House" mark and AH values never showed.** VoidBags asked VoidAH for prices the wrong way and always got nothing back. Items worth selling on the Auction House are marked again (with VoidAH installed).
