@@ -215,7 +215,8 @@ VB.defaults = {
     autoRepair = true,
     useGuildRepair = true,
     repairCostCap = 0,            -- 0 = no cap; otherwise max copper to spend per repair (personal funds only)
-    sortOrder = { "Equipment", "Tools", "Warband", "Cosmetic", "Flasks", "Potions", "Food", "Camping", "Knowledge", "Consumables", "QuestItems", "Keys", "Delves", "AlchemyMats", "CookingMats", "JewelcraftingMats", "MyProfMats", "Craftable", "SellableReagents", "Junk", "Misc" },
+    showIncome = false,           -- the income box on screen (Income.lua); click the bag window's gold to show it
+    sortOrder = { "Swap", "Equipment", "Tools", "Warband", "Cosmetic", "Flasks", "Potions", "Food", "Camping", "Knowledge", "Consumables", "QuestItems", "Keys", "Delves", "AlchemyMats", "CookingMats", "JewelcraftingMats", "MyProfMats", "Craftable", "SellableReagents", "Junk", "Misc" },
     position = nil,
     bankPosition = nil,
 }

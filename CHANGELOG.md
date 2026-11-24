@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0] — 2026-11-23
+
+- **Swap Gear (new).** Keep the items you swap in and out (riding gloves and boots, PvP gear, stealth gear, your other spec's set...) together at the top of your bags, apart from what you loot. Click **Swap** in the title bar, click the items you want (click one again to take it out), then click **Done**. They stay where they are in your bags: the section is only how they're shown. After Done, Swap Gear folds into one line at the top so it doesn't clutter your bags; click it to show or hide the items (a search shows them too). Swap Gear items are never sold, by Sell Junk or by a right-click at a vendor. Per character.
+- **Gold per hour (new).** Hover the gold in the bag window for what this session earned; click it for a box on screen with the total and your gold per hour (drag it anywhere; right-click for a new session, your best zones and recent sessions). Everything you earn counts: loot from mobs, gathering, fishing, chests and opened bags, rolls you win, looted coin and your share of a group's, quest gold and quest rewards. A sack or lockbox counts when you open it, by what's inside. Purchases, crafting, mail and trades don't.
+- **Priced by what really sells.** With VoidAH, a drop is worth what the item has actually sold for in your scans (never above today's cheapest listing), after the 5% cut, or the vendor price when that's more. An item that sits for days without selling counts at the vendor price. Hover for "worth if you sell it all" and "cash" (coin plus vendor), both per hour, by source and by item.
+- Time counts while you play: breaks over 5 minutes aren't counted. Per character.
+- **Splitting a stack (Ctrl+Right-click):** the "how many?" box now always opens in front of the bag window.
+
 ## [1.6.4] — 2026-11-21
 
 - **Fixed on WoW Forever: per-character settings.** The game stopped telling addons your realm's name, so your character's own settings were no longer loaded or saved. They are again, from where they were saved before.

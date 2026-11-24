@@ -33,23 +33,44 @@ local function FreeSlotBesides(bag, slot)
     end
 end
 
+-- Split log (last 30 steps, VoidBagsDB.splitLog): what happened on a split, read from the
+-- SavedVariables after a /reload. Added 2026-11-23 when splitting "stopped working".
+local function SplitLog(fmt, ...)
+    if not VoidBagsDB then return end
+    local log = VoidBagsDB.splitLog or {}
+    VoidBagsDB.splitLog = log
+    local ok, line = pcall(string.format, fmt, ...)
+    log[#log + 1] = date("%H:%M:%S") .. " " .. (ok and line or fmt)
+    while #log > 30 do table.remove(log, 1) end
+end
+VB.SplitLog = SplitLog
+
 local function SplitStackTo(bag, slot, amount)
+    local before = C_Container.GetContainerItemInfo(bag, slot)
     C_Container.SplitContainerItem(bag, slot, amount)
+    SplitLog("split %s of %s from %d/%d, cursor=%s, handoff=%s", tostring(amount),
+        tostring(before and before.stackCount), bag, slot, tostring(CursorHasItem()), tostring(HandoffOpen()))
     if not HandoffOpen() then return end
     local fb, fs = FreeSlotBesides(bag, slot)
     if not fb then
+        SplitLog("no free slot")
         print("|cff00c7ffVoidBags|r: no empty bag slot, so the trade or mail may take the whole stack. Free a slot and split again.")
         return
     end
     C_Container.PickupContainerItem(fb, fs)            -- drop the split part in the empty slot
+    SplitLog("dropped in %d/%d, cursor=%s", fb, fs, tostring(CursorHasItem()))
     local tries = 0
     local function pickBack()
         tries = tries + 1
         local info = C_Container.GetContainerItemInfo(fb, fs)
         if info and not info.isLocked and not CursorHasItem() then
             C_Container.PickupContainerItem(fb, fs)    -- a real stack of `amount` on the cursor
+            SplitLog("picked back %s after %d tries, cursor=%s", tostring(info.stackCount), tries, tostring(CursorHasItem()))
         elseif tries < 30 then
             C_Timer.After(0.1, pickBack)
+        else
+            SplitLog("pick back gave up: info=%s locked=%s cursor=%s", tostring(info ~= nil),
+                tostring(info and info.isLocked), tostring(CursorHasItem()))
         end
     end
     C_Timer.After(0.1, pickBack)
@@ -60,15 +81,33 @@ VB.SplitStackTo = SplitStackTo
 -- Midnight 12.0.5 removed the OpenStackSplitFrame() global; the method form
 -- on StackSplitFrame is what survived. If both are missing, fall back to a
 -- StaticPopup with a numeric input. Returns true on success.
+-- Blizzard's split box is HIGH strata like the bag window, and since the bag window became
+-- toplevel (2026-11-16) it could open BEHIND the bags. DIALOG puts it above them.
+local function FrontSplitBox()
+    local f = StackSplitFrame
+    if not f then return end
+    f:SetFrameStrata("DIALOG")
+    f:Raise()
+    local owner = f.owner
+    SplitLog("box open for %s: shown=%s strata=%s level=%d, item button %s level %d",
+        owner and owner.GetName and tostring(owner:GetName()) or "?",
+        tostring(f:IsVisible()), f:GetFrameStrata(), f:GetFrameLevel(),
+        owner and owner.GetFrameStrata and owner:GetFrameStrata() or "?",
+        owner and owner.GetFrameLevel and owner:GetFrameLevel() or -1)
+end
+
 local function ShowSplitPrompt(stackCount, anchorFrame, anchorPoint, relativePoint, bag, slot)
     if type(_G.OpenStackSplitFrame) == "function" then
         _G.OpenStackSplitFrame(stackCount, anchorFrame, anchorPoint, relativePoint)
+        FrontSplitBox()
         return true
     end
     if StackSplitFrame and type(StackSplitFrame.OpenStackSplitFrame) == "function" then
         StackSplitFrame:OpenStackSplitFrame(stackCount, anchorFrame, anchorPoint, relativePoint)
+        FrontSplitBox()
         return true
     end
+    SplitLog("no Blizzard split box, using the popup")
     -- Final fallback: StaticPopup with numeric input.
     StaticPopupDialogs["VOIDBAGS_SPLIT_STACK"] = StaticPopupDialogs["VOIDBAGS_SPLIT_STACK"] or {
         text = "Split how many of %d? (1-%d)",
@@ -418,6 +457,7 @@ local function CreateItemButton(parent, bag, slot)
             if id and not VoidLib.Secrets.IsSecret(id) then
                 local why = (VB.ToolKept and VB.ToolKept(self.bag, self.slot))
                     or (VoidBagsDB and VoidBagsDB.protected and VoidBagsDB.protected[id] and "protected")
+                    or (VB.IsSwap(id) and "swap")
                 if why then
                     self:SetAttribute("type2", nil)
                     self._keptBlock = why
@@ -426,7 +466,7 @@ local function CreateItemButton(parent, bag, slot)
             return
         end
         -- (Shift / Ctrl clicks stay links and previews, as in Blizzard's bags)
-        if button ~= "LeftButton" or InCombatLockdown() or IsModifiedClick() then return end
+        if button ~= "LeftButton" or InCombatLockdown() or IsModifiedClick() or VB.swapPick then return end
         if (SpellCanTargetItem and SpellCanTargetItem()) or (SpellCanTargetItemID and SpellCanTargetItemID()) then
             self:SetAttribute("type1", "macro")
             self:SetAttribute("macrotext1", "/use " .. self.bag .. " " .. self.slot)
@@ -444,7 +484,8 @@ local function CreateItemButton(parent, bag, slot)
             if not InCombatLockdown() then self:SetAttribute("type2", "macro") end
             local link = C_Container.GetContainerItemLink(self.bag, self.slot)
             print(VB.C_CYAN .. "[VoidBags]|r Kept " .. (link or "it") .. ": "
-                .. (why == "protected" and "you protected it" or ("you need it (" .. why .. ")"))
+                .. (why == "protected" and "you protected it" or why == "swap" and "it's in your Swap Gear"
+                    or ("you need it (" .. why .. ")"))
                 .. ". To sell it anyway, drag it onto the vendor window.")
         end
     end)
@@ -460,6 +501,12 @@ local function CreateItemButton(parent, bag, slot)
         local info = C_Container.GetContainerItemInfo(self.bag, self.slot)
         if not info then return end  -- empty slot
 
+        -- Choosing Swap Gear (the Swap button): a left-click puts the item in or takes it out
+        if VB.swapPick and button == "LeftButton" and not IsModifiedClick() then
+            VB:ToggleSwap(info.itemID)
+            return
+        end
+
         if button == "RightButton" then
             -- Alt+Right = toggle protection (P). alt-type2 is cleared above, so
             -- the secure /use macro doesn't also fire.
@@ -474,6 +521,9 @@ local function CreateItemButton(parent, bag, slot)
                 return
             end
             -- Ctrl+Right = split stack (Blizzard default SPLITSTACK bind)
+            if IsControlKeyDown() then
+                SplitLog("ctrl+right on %d/%d, stack %s", self.bag, self.slot, tostring(info.stackCount))
+            end
             if IsControlKeyDown() and (info.stackCount or 0) > 1 then
                 if ShowSplitPrompt(info.stackCount, self, "BOTTOMLEFT", "TOPLEFT",
                                     self.bag, self.slot) then
@@ -496,13 +546,7 @@ local function CreateItemButton(parent, bag, slot)
         C_Container.PickupContainerItem(self.bag, self.slot)
     end)
     btn:SetScript("OnDragStart", function(self)
-        C_Container.PickupContainerItem(self.bag, self.slot)
-    end)
-    btn:SetScript("OnReceiveDrag", function(self)
-        C_Container.PickupContainerItem(self.bag, self.slot)
-    end)
-
-    btn:SetScript("OnDragStart", function(self)
+        if VB.swapPick then return end   -- choosing Swap Gear: clicks only, nothing picked up
         C_Container.PickupContainerItem(self.bag, self.slot)
     end)
     btn:SetScript("OnReceiveDrag", function(self)
@@ -513,6 +557,10 @@ local function CreateItemButton(parent, bag, slot)
     btn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetBagItem(self.bag, self.slot)
+        if VB.swapPick then
+            GameTooltip:AddLine(self.catKey == "Swap" and "Click: take it out of Swap Gear" or "Click: put it in Swap Gear",
+                0.40, 0.90, 0.75)
+        end
         GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function()
@@ -722,6 +770,16 @@ local function CreateSectionFrame(parent, catKey)
     line:SetVertexColor(catInfo.color[1], catInfo.color[2], catInfo.color[3], 0.3)
 
     f.catKey = catKey
+    if catKey == "Swap" then
+        -- click the Swap Gear bar: show / hide its items (hidden by default, so they don't clutter the bags)
+        f:EnableMouse(true)
+        f:SetScript("OnMouseUp", function()
+            if VB.swapPick then return end
+            VoidBagsCharDB.swapOpen = not VoidBagsCharDB.swapOpen or nil
+            layoutDirty = true
+            VB._LayoutBags()   -- defined below this function
+        end)
+    end
     return f
 end
 
@@ -787,7 +845,8 @@ local function LayoutBags()
     -- Render each category with header
     for _, catKey in ipairs(sortOrder) do
         local items = sorted[catKey]
-        if items and #items > 0 then
+        local picking = catKey == "Swap" and VB.swapPick   -- choosing Swap Gear: the bar shows even when empty
+        if items and (#items > 0 or picking) then
             -- Section header
             if not sectionFrames[catKey] then
                 sectionFrames[catKey] = CreateSectionFrame(contentParent, catKey)
@@ -797,6 +856,16 @@ local function LayoutBags()
             sf:ClearAllPoints()
             sf:SetPoint("TOPLEFT", contentParent, "TOPLEFT", 0, -yOffset)
             sf.countText:SetText(#items)
+            -- Swap Gear is folded (items hidden) unless you opened it, you're choosing, or you're searching
+            local folded = false
+            if catKey == "Swap" then
+                local searching = searchBox and searchBox:GetText() ~= ""
+                folded = not (picking or searching or (VoidBagsCharDB and VoidBagsCharDB.swapOpen))
+                sf.label:SetText(picking and "Swap Gear  |cffdddddd- click items to put them in or take them out, then Done|r"
+                    or folded and ("Swap Gear  |cff999999(" .. #items .. " hidden - click to show)|r")
+                    or "Swap Gear  |cff999999(click to hide)|r")
+                sf.countText:SetText(folded and "" or #items)
+            end
             sf:SetAlpha(1)
             sf:Show()
             yOffset = yOffset + 22
@@ -806,13 +875,15 @@ local function LayoutBags()
             end
             local btns = sectionButtons[catKey]
 
-            for i, itemData in ipairs(items) do
+            local shown = folded and {} or items
+            for i, itemData in ipairs(shown) do
                 if not btns[i] then
                     btns[i] = CreateItemButton(contentParent, 0, 0)
                 end
                 local btn = btns[i]
                 btn.bag = itemData.bag
                 btn.slot = itemData.slot
+                btn.catKey = catKey   -- the tooltip says what a click does while choosing Swap Gear
                 -- Update secure right-click macro to point at the new slot.
                 -- SetAttribute is forbidden in combat for secure templates.
                 if not InCombatLockdown() then
@@ -830,11 +901,11 @@ local function LayoutBags()
                 btn:Show()
             end
 
-            for i = #items + 1, #btns do
+            for i = #shown + 1, #btns do
                 btns[i]:Hide()
             end
 
-            local rows = math.ceil(#items / columns)
+            local rows = math.ceil(#shown / columns)
             yOffset = yOffset + rows * (iconSize + spacing) + sectionSpacing
         end
     end
@@ -940,6 +1011,7 @@ local function LayoutBags()
 
     layoutDirty = false
 end
+VB._LayoutBags = LayoutBags
 
 -- In combat the layout can't move/show secure buttons, but their textures and
 -- text can change: refresh each shown button from its slot's CURRENT contents so a
@@ -1060,7 +1132,7 @@ local function SellJunk(includeTrash)
             -- protected items, tools / class items this character needs (ForeverTools.lua) and Forever camp
             -- items (ForeverCamp.lua) are never sold
             if info and not (cleanID and (protected[cleanID] or (VB.ToolKept and VB.ToolKept(bag, slot))
-                or (VB.FOREVER_CAMP and VB.FOREVER_CAMP[cleanID]))) then
+                or (VB.FOREVER_CAMP and VB.FOREVER_CAMP[cleanID]) or VB.IsSwap(cleanID))) then
                 local shouldSell = false
                 -- Always sell grey junk
                 if info.quality == 0 then
@@ -1346,10 +1418,31 @@ local function CreateBagFrame()
         C_Timer.After(0.5, function() layoutDirty = true; LayoutBags() end)
     end)
 
+    -- Swap button: Swap Gear (your own picks, pinned at the top). Click it, click items to put them in or take
+    -- them out, click Done. (A drag-and-drop box came first; the user didn't like it, 2026-11-23.)
+    local swapBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
+    swapBtn:SetSize(44, 18)
+    swapBtn:SetPoint("RIGHT", sortBtn, "LEFT", -4, 0)
+    VB:CreateBackdrop(swapBtn, "section")
+    local swapTxt = swapBtn:CreateFontString(nil, "OVERLAY")
+    VB:SetFont(swapTxt, 10, "")
+    swapTxt:SetPoint("CENTER")
+    f._swapTxt = swapTxt
+    swapTxt:SetText("|cff66e6bfSwap|r")
+    swapBtn:SetScript("OnClick", function() VB:SetSwapPick(not VB.swapPick) end)
+    swapBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine("Swap Gear", 0.40, 0.90, 0.75)
+        GameTooltip:AddLine("Keep items you swap in and out (riding gear, stealth gear...) together at the top of your bags. They're never sold.", 0.9, 0.9, 0.9, true)
+        GameTooltip:AddLine(VB.swapPick and "Click: done" or "Click, then click items to put them in or take them out", 0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+    end)
+    swapBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     -- Settings gear button — opens popup with auto-sell/auto-repair toggles
     local settingsBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
     settingsBtn:SetSize(22, 20)
-    settingsBtn:SetPoint("RIGHT", sortBtn, "LEFT", -4, 0)
+    settingsBtn:SetPoint("RIGHT", swapBtn, "LEFT", -4, 0)
     VB:CreateBackdrop(settingsBtn, "section")
     -- Recognizable gear/cog icon (the default WoW font has no cog glyph, so
     -- use Blizzard's options-button texture instead of the old "*" asterisk,
@@ -1534,6 +1627,15 @@ local function CreateBagFrame()
         -- Search and the bag-bar filter are mutually exclusive: any search edit
         -- drops the bag filter (a bag click clears the search first, then sets it).
         activeBagFilter = nil
+        -- starting or clearing a search shows / folds the hidden Swap Gear items again
+        local searching = text ~= ""
+        if searching ~= (self._wasSearching or false) then
+            self._wasSearching = searching
+            if VoidBagsCharDB and VoidBagsCharDB.swap and next(VoidBagsCharDB.swap) then
+                layoutDirty = true
+                LayoutBags()   -- re-applies the search itself
+            end
+        end
         ApplySearch(text)
         if crossCharFrame and crossCharFrame:IsShown() and text ~= "" then
             ShowCrossCharSearch(text)
@@ -1561,6 +1663,8 @@ local function CreateBagFrame()
     goldText = f:CreateFontString(nil, "OVERLAY")
     VB:SetFont(goldText, 11, "")
     goldText:SetPoint("BOTTOMRIGHT", -8, 8)
+    -- hover: what this session earned; click: the income box (Income.lua)
+    if VB.Income then VB.Income:AttachGold(f, goldText) end
 
     slotText = f:CreateFontString(nil, "OVERLAY")
     VB:SetFont(slotText, 11, "")
@@ -1958,6 +2062,7 @@ function VB:CloseBags()
     VisualHide(bagFrame)
     VisualHide(crossCharFrame)
     isOpen = false
+    if VB.swapPick then VB:SetSwapPick(false) end   -- choosing Swap Gear ends with the bags
     if escProxy:IsShown() then escProxy:Hide() end   -- isOpen is false first, so OnHide is a no-op
     VB._pendingClose = nil
     dbg("CloseBags EXIT")
@@ -2243,6 +2348,43 @@ function VB:ToggleProtect(itemID)
         print(VB.C_CYAN .. "[VoidBags]|r Protected: " .. name .. " — will never be marked T or auto-sold.")
     end
     if isOpen then DebouncedRefresh() end
+end
+
+----------------------------------------------------------------------
+-- Swap Gear: items you put there yourself, per character (VoidBagsCharDB.swap = { [itemID] = true })
+----------------------------------------------------------------------
+local function SwapList()
+    VoidBagsCharDB = VoidBagsCharDB or {}
+    VoidBagsCharDB.swap = VoidBagsCharDB.swap or {}
+    return VoidBagsCharDB.swap
+end
+
+-- Choosing Swap Gear: on, a left-click on an item puts it in or takes it out (nothing is picked up).
+-- Not saved: closing the bags ends it.
+function VB:SetSwapPick(on)
+    VB.swapPick = on and true or nil
+    if not on and VoidBagsCharDB then VoidBagsCharDB.swapOpen = nil end   -- Done: Swap Gear folds away
+    if bagFrame and bagFrame._swapTxt then
+        bagFrame._swapTxt:SetText(VB.swapPick and "|cffffd100Done|r" or "|cff66e6bfSwap|r")
+    end
+    layoutDirty = true
+    if isOpen then LayoutBags() end
+end
+
+-- Put an item in Swap Gear, or take it out. Nothing moves: the section is only how the bags are shown.
+function VB:ToggleSwap(itemID)
+    if not itemID or VoidLib.Secrets.IsSecret(itemID) then return end
+    local list = SwapList()
+    local name = C_Item.GetItemNameByID(itemID) or "item"
+    if list[itemID] then
+        list[itemID] = nil
+        print(VB.C_CYAN .. "[VoidBags]|r Out of Swap Gear: " .. name)
+    else
+        list[itemID] = true
+        print(VB.C_CYAN .. "[VoidBags]|r In Swap Gear: " .. name .. " (kept at the top, never sold)")
+    end
+    layoutDirty = true
+    if isOpen then LayoutBags() end   -- in combat it waits for combat to end by itself
 end
 
 ----------------------------------------------------------------------
@@ -2678,6 +2820,11 @@ SlashCmdList["VOIDBAGS"] = function(msg)
         return
     end
 
+    if msg == "income" and VB.Income then   -- the income box on/off (also: click the gold in the bag window)
+        VB.Income:SetShown(not VB.Income:Shown())
+        return
+    end
+
     if msg == "repair" then
         AutoRepair()
         return
@@ -2981,6 +3128,7 @@ SlashCmdList["VOIDBAGS"] = function(msg)
         print("  /vb reset — Reset position/size")
         print("  /vb sell — Sell junk items")
         print("  /vb protect — Toggle protection on hovered item")
+        print("  /vb income — Gold-per-hour box on/off (or click the gold in the bag window)")
         print("  /vb threshold <gold> — Set AH value threshold")
         print("  /vb search <name> — Search other characters")
         print("  /vb chars — List tracked characters")

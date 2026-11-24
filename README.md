@@ -20,8 +20,14 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 - **Settings** behind the gear icon in the title bar
 - **Disenchant, Milling, Prospecting and Pick Lock buttons** next to the title — only the ones your character knows. Click the button, then the item
 
+### Swap Gear: your own section
+- **Items you swap in and out stay together** at the top of your bags, apart from what you loot: riding gloves and boots, PvP gear, stealth gear, your other spec's set, anything you pick
+- Click **Swap** in the title bar, **click the items** you want (click one again to take it out), then click **Done**. Nothing moves in your bags; the section is only how they're shown
+- **Out of sight until you need them:** after Done, Swap Gear folds into one line at the top. Click it to show or hide the items; a search shows them too
+- **Never sold:** Sell Junk and a right-click at a vendor leave them alone. Per character
+
 ### Automatic categories
-Equipment · **Tools & Class Items** (WoW Forever) · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food & Drink** · **Camping** (WoW Forever) · **Knowledge** · Consumables · Quest Items · Keys · **Delves** · **Alchemy Mats** · **Cooking Mats** · **Jewelcrafting Mats** · Other Profession Mats · Craftable · Sell / Other Mats · Junk · Miscellaneous
+**Swap Gear** (yours) · Equipment · **Tools & Class Items** (WoW Forever) · **Warband** · **Cosmetic** · **Flasks** · **Potions** · **Food & Drink** · **Camping** (WoW Forever) · **Knowledge** · Consumables · Quest Items · Keys · **Delves** · **Alchemy Mats** · **Cooking Mats** · **Jewelcrafting Mats** · Other Profession Mats · Craftable · Sell / Other Mats · Junk · Miscellaneous
 
 - **Knowledge** collects profession knowledge items you still have to use (right-click) to get the points: treasures, weekly drops, treatises and books, for every profession
 - **Delves** collects delve items such as the weekly bounty map and coffer keys
@@ -39,6 +45,13 @@ Equipment · **Tools & Class Items** (WoW Forever) · **Warband** · **Cosmetic*
 - **Protected items** — **Alt+Right-click** an item in your bags (middle-click in the bank) to protect it; VoidBags will never mark it as junk or sell it
 - **WoW Forever: Tools & Class Items.** What your character needs is kept in its own category and can't be sold by accident: your profession tools (Mining Pick, Skinning Knife, Blacksmith Hammer, enchanting rods...), your fishing pole, Flint and Tinder and Simple Wood, and your class's items (rogue Thieves' Tools, Flash Powder and poisons; mage, priest, druid, paladin, shaman and warlock reagents). A right-click at a vendor won't sell them and Sell Junk skips them. **One copy of each tool is kept** (the one you hold, else the best one), so a spare pole or pick can still be sold; stacks are always kept whole. To sell a kept item on purpose, drag it onto the vendor window
 - **WoW Forever: Camping.** Camp items get their own category so you can tell what to keep: campfire kits, camp features (Rock Garden, Greenhouse, Lodestone, Incense Candle, Cookie's Feast...) and the Cozy Sleeping Bag. They are kept, and Sell Junk never sells them. The list comes from Blizzard's own Camping recipes for every profession.
+
+### Gold per hour
+- **What your play earns.** Hover the gold in the bag window for this session; click it for a small box on screen with the total and your **gold per hour**. Drag it anywhere, right-click for a new session, your best zones and your recent sessions
+- **Everything counts:** items you loot (mobs, gathering, fishing, chests, bags and boxes you open, rolls you win), the coin you loot (and your share of a group's), quest gold and quest reward items. A sack or lockbox counts when you open it, by what's inside. Dungeons count as their own place in your best zones. What you buy, craft, get by mail or trade for doesn't, and neither does selling your loot later (it was counted when you looted it)
+- **Priced by what actually sells.** With **VoidAH**, a drop is worth what that item has really sold for in your scans (never more than today's cheapest listing), after the auction house's 5% cut, or the vendor's price when that's more. An item that sits listed for days without selling counts at the vendor price, and one never seen selling yet is marked as priced from listings. Soulbound, grey and quest items: the vendor's price. Without VoidAH it uses Auctionator or TSM if you have them
+- **Two numbers:** what it's all worth if you sell it, and the cash you can always have (coin plus vendor prices). Hover for both per hour, by source (mobs, quests, gathering...) and your best items
+- **Time that counts is time playing:** a break over 5 minutes (flying, AFK, the bank) isn't counted. A session carries over a /reload and ends 30 minutes after you last earned anything. Per character, since gold per hour depends on your level
 
 ### Bank and Warband bank
 - A **companion bank panel** with the same categories
@@ -76,6 +89,7 @@ Equipment · **Tools & Class Items** (WoW Forever) · **Warband** · **Cosmetic*
 | `/vb search <name>` | Find an item across all your characters |
 | `/vb chars` | List tracked characters |
 | `/vb protect` | List protected items — or hover an item first to protect/unprotect it |
+| `/vb income` | Show or hide the gold-per-hour box (or click the gold in the bag window) |
 | `/vb default` | Switch to Blizzard's bags (toggle) |
 | `/vb reset` | Reset position and size |
 | `/vb help` | Show all commands in game |

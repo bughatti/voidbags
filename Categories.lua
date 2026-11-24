@@ -7,6 +7,9 @@ local _, VB = ...
 -- Category definitions
 ----------------------------------------------------------------------
 VB.CATEGORIES = {
+    -- Swap Gear: items YOU put here (riding gloves and boots, stealth gear...), pinned at the top and kept.
+    -- Per character (VoidBagsCharDB.swap). The user, 2026-11-23: they "get muddled up with drops".
+    Swap               = { order = 0.5, label = "Swap Gear",         color = { 0.40, 0.90, 0.75 } },
     Equipment          = { order = 1,  label = "Equipment",          color = VB.palette.accent },
     -- WoW Forever: tools and class items this character needs (ForeverTools.lua); never sold by VoidBags or VoidAH
     Tools              = { order = 1.5, label = "Tools & Class Items", color = { 0.85, 0.75, 0.55 } },
@@ -43,6 +46,12 @@ VB.BUILTIN_OVERRIDES = {
     -- Cooking ingredients that lack a Cooking/Meat/Fish subclass
     [253403] = "CookingMats",   -- Thalassian Fillet (processed from raw fish)
 }
+
+-- Swap Gear membership (per character): itemID -> true
+function VB.IsSwap(itemID)
+    local s = itemID and VoidBagsCharDB and VoidBagsCharDB.swap
+    return (s and not VoidLib.Secrets.IsSecret(itemID) and s[itemID]) and true or false
+end
 
 -- Returns user-override category for an item (highest priority)
 local function GetItemOverride(itemID)
@@ -513,6 +522,12 @@ function VB:CategorizeItem(bag, slot)
     local isProtected = VoidBagsDB and VoidBagsDB.protected and VoidBagsDB.protected[itemID]
     if isProtected then
         markers.protected = true
+    end
+
+    -- Swap Gear (you put it there): above everything, kept like a protected item
+    if VB.IsSwap(itemID) then
+        markers.protected = true
+        return "Swap", markers
     end
 
     -- USER / BUILTIN OVERRIDE — highest priority, user-specified category wins
