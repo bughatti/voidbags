@@ -253,23 +253,33 @@ function VB:InitDB()
         end
     end
     if migrated then
-        -- Re-sort to match defaults order
+        -- Your order stays; each NEW category goes in right after the one before it in the default order (2026-11-25:
+        -- this used to rebuild the whole list in default order and throw any order you had away)
         local ordered = {}
-        local saw = {}
+        for _, c in ipairs(existing) do if existingSet[c] then ordered[#ordered + 1] = c end end
+        local have = {}
+        for _, c in ipairs(ordered) do have[c] = true end
+        local prev
         for _, c in ipairs(self.defaults.sortOrder) do
-            if existingSet[c] or true then  -- include all defaults
-                ordered[#ordered + 1] = c
-                saw[c] = true
+            if not have[c] then
+                local at = #ordered + 1
+                if prev then
+                    for i, x in ipairs(ordered) do if x == prev then at = i + 1 end end
+                else
+                    at = 1
+                end
+                table.insert(ordered, at, c)
+                have[c] = true
             end
-        end
-        -- Append any user-only categories not in defaults (defensive)
-        for _, c in ipairs(existing) do
-            if not saw[c] then ordered[#ordered + 1] = c end
+            prev = c
         end
         VoidBagsDB.config.sortOrder = ordered
     end
 
     self.config = VoidBagsDB.config
+    -- "Use Blizzard's bags" (Settings, 2026-11-25): VoidBags stays out of the way from the first moment, so Blizzard's
+    -- bags are never hidden (a CurseForge comment: "not being able to ... look at my bags normally")
+    self._useBlizzardBags = self.config.useBlizzardBags and true or nil
 end
 
 function VB:GetConfig(key)

@@ -1182,6 +1182,98 @@ local function CreateBankFrame()
     depositBtn:Hide()  -- only show on Warband tab
     f.depositBtn = depositBtn
 
+    -- Warband bank gold: what's in it, Deposit / Withdraw (2026-11-25, a CurseForge comment: "It would be really nice
+    -- to be able to withdraw and deposit Warbank funds"). VoidBags hides Blizzard's bank, and its gold buttons with it.
+    -- Plain, unrestricted calls (C_Bank.DepositMoney / WithdrawMoney, as Blizzard's BankFrame.lua makes them), through
+    -- VoidBags' own popups so Blizzard's are never touched. Shown on the Warband tab only where the game supports it
+    -- (retail; not WoW Forever).
+    local ACCOUNT = Enum and Enum.BankType and Enum.BankType.Account
+    local function goldOK()
+        return ACCOUNT and C_Bank and C_Bank.DoesBankTypeSupportMoneyTransfer
+            and C_Bank.DoesBankTypeSupportMoneyTransfer(ACCOUNT) and true or false
+    end
+    local wb = CreateFrame("Frame", nil, f)
+    wb:SetSize(270, 22)
+    wb:SetPoint("BOTTOMRIGHT", -10, 44)   -- its own row above the tab buttons (Codex: in a narrow window it covered the 5th tab)
+    wb:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
+    local function smallBtn(label, w)
+        local b = CreateFrame("Button", nil, wb, "BackdropTemplate")
+        b:SetSize(w, 18)
+        VB:CreateBackdrop(b, "section")
+        b.txt = b:CreateFontString(nil, "OVERLAY")
+        VB:SetFont(b.txt, 10, "")
+        b.txt:SetPoint("CENTER")
+        b.txt:SetText(label)
+        return b
+    end
+    wb.withdraw = smallBtn("Withdraw", 70); wb.withdraw:SetPoint("RIGHT", 0, 0)
+    wb.deposit = smallBtn("Deposit", 70); wb.deposit:SetPoint("RIGHT", wb.withdraw, "LEFT", -4, 0)
+    wb.money = wb:CreateFontString(nil, "OVERLAY")
+    VB:SetFont(wb.money, 11, "")
+    wb.money:SetPoint("RIGHT", wb.deposit, "LEFT", -8, 0)
+    wb:Hide()
+    f.warbandGold = wb
+    function f.RefreshWarbandGold()
+        -- the item list gives the row its space while it shows
+        local show = f.activeTab == "warband" and goldOK()
+        -- the list holds secure item buttons: it moves out of combat only (PLAYER_MONEY can fire mid-fight with the
+        -- bank still up; Codex Sol), then once the fight ends
+        if f.scroll then
+            if InCombatLockdown() then f._wbAnchorPending = true
+            else f._wbAnchorPending = nil; f.scroll:SetPoint("BOTTOMRIGHT", -28, show and 68 or 42) end
+        end
+        if not show then wb:Hide() return end
+        local have = C_Bank.FetchDepositedMoney and C_Bank.FetchDepositedMoney(ACCOUNT) or 0
+        -- every coin, like the bag footer ("0" alone read as nothing; the top bar's "Deposit Warband" is for items)
+        wb.money:SetText(VB.C_DIM .. "Warband gold:|r " .. (VB.FormatMoneyFull and VB:FormatMoneyFull(have) or GetCoinTextureString(have)))
+        local canIn = not C_Bank.CanDepositMoney or C_Bank.CanDepositMoney(ACCOUNT)
+        local canOut = not C_Bank.CanWithdrawMoney or C_Bank.CanWithdrawMoney(ACCOUNT)
+        wb.deposit:SetEnabled(canIn and true or false); wb.deposit:SetAlpha(canIn and 1 or 0.4)
+        wb.withdraw:SetEnabled(canOut and true or false); wb.withdraw:SetAlpha(canOut and 1 or 0.4)
+        wb:Show()
+    end
+    local function moneyPopup(which, title, call)
+        StaticPopupDialogs[which] = StaticPopupDialogs[which] or {
+            text = title, button1 = ACCEPT, button2 = CANCEL,
+            hasMoneyInputFrame = 1, timeout = 0, hideOnEscape = 1, preferredIndex = 3,
+            OnAccept = function(dialog)
+                local mi = dialog.MoneyInputFrame or dialog.moneyInputFrame
+                local copper = mi and MoneyInputFrame_GetCopper(mi) or 0
+                if copper > 0 then call(copper) end
+            end,
+            OnHide = function(dialog)
+                local mi = dialog.MoneyInputFrame or dialog.moneyInputFrame
+                if mi then MoneyInputFrame_ResetMoney(mi) end
+            end,
+            EditBoxOnEnterPressed = function(editBox)
+                local dialog = editBox:GetParent():GetParent()
+                local mi = dialog.MoneyInputFrame or dialog.moneyInputFrame
+                local copper = mi and MoneyInputFrame_GetCopper(mi) or 0
+                if copper > 0 then call(copper) end
+                dialog:Hide()
+            end,
+        }
+        StaticPopup_Show(which)
+    end
+    wb.deposit:SetScript("OnClick", function()
+        moneyPopup("VOIDBAGS_WARBAND_DEPOSIT", "Put how much gold into the Warband bank?",
+            function(c) C_Bank.DepositMoney(ACCOUNT, c) end)
+    end)
+    wb.withdraw:SetScript("OnClick", function()
+        moneyPopup("VOIDBAGS_WARBAND_WITHDRAW", "Take how much gold out of the Warband bank?",
+            function(c) C_Bank.WithdrawMoney(ACCOUNT, c) end)
+    end)
+    do
+        local ev = CreateFrame("Frame")
+        ev:RegisterEvent("PLAYER_MONEY")
+        pcall(ev.RegisterEvent, ev, "ACCOUNT_MONEY")
+        ev:RegisterEvent("PLAYER_REGEN_ENABLED")
+        ev:SetScript("OnEvent", function(_, event)
+            if event == "PLAYER_REGEN_ENABLED" and not f._wbAnchorPending then return end
+            if f:IsShown() or f._wbAnchorPending then f.RefreshWarbandGold() end
+        end)
+    end
+
     -- Move T to Bags button (anchored left of Deposit button)
     local moveTBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
     moveTBtn:SetSize(90, 18)
@@ -1341,6 +1433,7 @@ local function CreateBankFrame()
         warbandTabTxt:SetText((wb and VB.C_CYAN or VB.C_DIM) .. "Warband|r")
         title:SetText(VB.C_CYAN .. (wb and "VoidBags — Warband Bank|r" or "VoidBags — Bank|r"))
         f.depositBtn:SetShown(wb)
+        if f.RefreshWarbandGold then f.RefreshWarbandGold() end
     end
 
     bankTabBtn:SetScript("OnClick", function()
@@ -1354,6 +1447,7 @@ local function CreateBankFrame()
         if f.BuildBagBar then f.BuildBagBar(BANK_BAG_IDS, "Bank") end
         LayoutBank(BANK_BAG_IDS)
         if f.UpdateBuyTabButton then f.UpdateBuyTabButton() end
+        if f.RefreshWarbandGold then f.RefreshWarbandGold() end
     end)
 
     warbandTabBtn:SetScript("OnClick", function()
@@ -1370,6 +1464,7 @@ local function CreateBankFrame()
         if f.BuildBagBar then f.BuildBagBar(WARBAND_BAG_IDS, "Warband") end
         LayoutBank(WARBAND_BAG_IDS)
         if f.UpdateBuyTabButton then f.UpdateBuyTabButton() end
+        if f.RefreshWarbandGold then f.RefreshWarbandGold() end
     end)
 
     -- Search box

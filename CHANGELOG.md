@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0] — 2026-11-25
+
+From your comments on CurseForge, thank you:
+- **Right-click an item into the auction house.** With the AH open, a right-click puts the item up for sale (VoidAH's Sell tab, or Blizzard's AH) instead of using it. Before, it used the item: food got eaten.
+- **"Use Blizzard's bags instead"** in VoidBags' settings: the game's own bags, kept after a reload (it used to last one session). The bank, Swap Gear, gold per hour and the tooltip markers keep working. To go back: the Void hub's quick box (left-click the hub button) → Bags, then /reload.
+- **Order the sections your way:** right-click a section's header to move it up, down or to the top, or put them all back in the default order. Your order no longer resets when an update adds a new category.
+- **Warband gold (retail):** the bank's Warband tab shows the gold in the Warband bank, with Deposit and Withdraw buttons.
+
 ## [1.7.0] — 2026-11-23
 
 - **Swap Gear (new).** Keep the items you swap in and out (riding gloves and boots, PvP gear, stealth gear, your other spec's set...) together at the top of your bags, apart from what you loot. Click **Swap** in the title bar, click the items you want (click one again to take it out), then click **Done**. They stay where they are in your bags: the section is only how they're shown. After Done, Swap Gear folds into one line at the top so it doesn't clutter your bags; click it to show or hide the items (a search shows them too). Swap Gear items are never sold, by Sell Junk or by a right-click at a vendor. Per character.

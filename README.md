@@ -31,6 +31,7 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 
 - **Knowledge** collects profession knowledge items you still have to use (right-click) to get the points: treasures, weekly drops, treatises and books, for every profession
 - **Delves** collects delve items such as the weekly bounty map and coffer keys
+- **Your own order:** right-click a section's header to move it up, down or to the top (or put every section back in the default order). Your order stays when an update adds a new category
 
 ### Item markers at a glance
 - **Item level** on gear and a **green upgrade arrow** on real upgrades — only gear your spec can use, never an off-hand while you hold a two-hander, never a swap that breaks your tier set bonus
@@ -40,6 +41,7 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 - **Auction value** shown on items worth selling
 
 ### Merchant tools
+- **Right-click an item into the auction house:** with the AH open, a right-click puts the item up for sale (in VoidAH's Sell tab, or Blizzard's AH) instead of using it, like the default bags
 - **Auto-sell junk** when you open a vendor, plus AH-trash reagents below your price threshold
 - **Auto-repair**, optionally using guild-bank funds
 - **Protected items** — **Alt+Right-click** an item in your bags (middle-click in the bank) to protect it; VoidBags will never mark it as junk or sell it
@@ -59,6 +61,7 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 - **Drop anywhere** — drag an item onto any empty part of the bags, bank or Warband window and it goes into the first free slot; no scrolling to find one
 - **Full Warband bank support**, including tabs you buy later
 - **Deposit Warband** button moves your warbound gear into the Warband bank and leaves warbound consumables in your bags
+- **Warband gold:** the Warband tab shows the gold in the Warband bank, with **Deposit** and **Withdraw** buttons (retail)
 - **Materials for your crafters** (with VoidGather) — the Warband tab lists every crafting material you're carrying that your other characters craft with (their crafting goals first, with exact counts), with one **Deposit for crafters** button. What the character you're on crafts with stays in its bags, except disenchanting materials, which pool for your enchanter. **Take my materials** does the reverse: what in the warband bank this character crafts with, back into its bags. Only crafting materials move (never potions or food), and both lists clear themselves
 - **Buy Tab button** shows the next tab's cost (opens Blizzard's bank to complete the purchase)
 
@@ -70,8 +73,9 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 - **Search every character's bags** for an item with `/vb search`
 - Each character's inventory is snapshotted on logout
 
-### Safe fallback
-- **`/vb default`** switches back to Blizzard's bags for the session if another addon ever conflicts; a `/reload` brings VoidBags back
+### Blizzard's bags, if you'd rather
+- **Settings → "Use Blizzard's bags instead"** shows the game's own bags and keeps it that way after a reload. The bank, Swap Gear, gold per hour and the item markers in tooltips keep working
+- To go back: the Void hub's quick box (left-click the hub button) → Bags → "Use Blizzard's bags", then `/reload`. `/vb default` switches it too
 
 ---
 
@@ -90,7 +94,7 @@ VoidBags replaces Blizzard's bags with one unified window that sorts every item 
 | `/vb chars` | List tracked characters |
 | `/vb protect` | List protected items — or hover an item first to protect/unprotect it |
 | `/vb income` | Show or hide the gold-per-hour box (or click the gold in the bag window) |
-| `/vb default` | Switch to Blizzard's bags (toggle) |
+| `/vb default` | Switch between Blizzard's bags and VoidBags (kept after a reload) |
 | `/vb reset` | Reset position and size |
 | `/vb help` | Show all commands in game |
 

@@ -290,6 +290,23 @@ end
 -- Create item button
 ----------------------------------------------------------------------
 local btnCounter = 0
+-- An auction house open (Blizzard's or VoidAH's): a plain right-click then hands the item to it instead of using it,
+-- as Blizzard's own bags do (ContainerFrame.lua: AuctionHouseFrame:SetPostItem, then return). A CurseForge comment,
+-- 2026-11-25: "not being able to right-click items into auction is frustrating"; reproduced on Forever the same night:
+-- the right-click ATE the food.
+VB.ahOpen = false
+do
+    local ev = CreateFrame("Frame")
+    ev:RegisterEvent("AUCTION_HOUSE_SHOW")
+    ev:RegisterEvent("AUCTION_HOUSE_CLOSED")
+    ev:SetScript("OnEvent", function(_, e) VB.ahOpen = (e == "AUCTION_HOUSE_SHOW") end)
+end
+local function toAuction(loc)
+    if VoidAH_SetSellItem and VoidAH_SetSellItem(loc) then return end   -- VoidAH runs the AH: its Sell tab
+    local f = AuctionHouseFrame
+    if f and f.SetPostItem and f:IsShown() then f:SetPostItem(loc) end    -- Blizzard's AH
+end
+
 local function CreateItemButton(parent, bag, slot)
     btnCounter = btnCounter + 1
     local size = VB:GetConfig("iconSize")
@@ -447,6 +464,17 @@ local function CreateItemButton(parent, bag, slot)
     -- click (set in PreClick, out of combat only); the Lua handler below then stays out.
     btn:SetScript("PreClick", function(self, button)
         self._targetUse = nil
+        -- At the auction house a plain right-click puts the item up for sale (never uses it): the secure /use is off
+        -- for this one click, OnClick hands it over, PostClick turns /use back on. In combat the attribute can't
+        -- change, but no AH is usable in combat either.
+        if button == "RightButton" and not IsModifiedClick() and not InCombatLockdown() and VB.ahOpen then
+            local loc = ItemLocation:CreateFromBagAndSlot(self.bag, self.slot)
+            if loc and C_Item.DoesItemExist(loc) then
+                self:SetAttribute("type2", nil)
+                self._ahPost = loc
+            end
+            return
+        end
         -- A plain right-click at a vendor SELLS the item. Kept items (a tool / class item you need, see
         -- ForeverTools.lua, or one you protected) don't go: the secure /use is switched off for this one
         -- click. The user, 2026-11-10, lost the fishing pole and nearly the Mining Pick that way.
@@ -474,6 +502,10 @@ local function CreateItemButton(parent, bag, slot)
         end
     end)
     btn:SetScript("PostClick", function(self)
+        if self._ahPost then
+            self._ahPost = nil
+            if not InCombatLockdown() then self:SetAttribute("type2", "macro") end
+        end
         if self._targetUse and not InCombatLockdown() then
             self:SetAttribute("type1", nil)
             self:SetAttribute("macrotext1", nil)
@@ -492,6 +524,13 @@ local function CreateItemButton(parent, bag, slot)
 
     btn:HookScript("OnClick", function(self, button)
         if self._targetUse then return end   -- the secure /use put the waiting spell on it
+        -- at the auction house: a right-clicked item goes up for sale (PreClick switched /use off)
+        if self._ahPost and button == "RightButton" then
+            -- called directly, not in a pcall: a pcall strips the hardware event, and the Sell tab's price search
+            -- needs this click to count as yours (CLAUDE.md, AH taint findings)
+            toAuction(self._ahPost)
+            return
+        end
         -- Cursor has item → place it down here regardless of button
         if CursorHasItem() then
             C_Container.PickupContainerItem(self.bag, self.slot)
@@ -770,17 +809,77 @@ local function CreateSectionFrame(parent, catKey)
     line:SetVertexColor(catInfo.color[1], catInfo.color[2], catInfo.color[3], 0.3)
 
     f.catKey = catKey
-    if catKey == "Swap" then
-        -- click the Swap Gear bar: show / hide its items (hidden by default, so they don't clutter the bags)
-        f:EnableMouse(true)
-        f:SetScript("OnMouseUp", function()
+    -- Right-click a header: move the section (2026-11-25, a CurseForge comment: "not being able to ... organize how I
+    -- want"). The order was already saved (config.sortOrder) but had no controls.
+    f:EnableMouse(true)
+    f:SetScript("OnMouseUp", function(self, button)
+        if button == "RightButton" then VB:SectionMenu(self, catKey) return end
+        if catKey == "Swap" then
+            -- click the Swap Gear bar: show / hide its items (hidden by default, so they don't clutter the bags)
             if VB.swapPick then return end
             VoidBagsCharDB.swapOpen = not VoidBagsCharDB.swapOpen or nil
             layoutDirty = true
             VB._LayoutBags()   -- defined below this function
-        end)
-    end
+        end
+    end)
+    f:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(catInfo.label, catInfo.color[1], catInfo.color[2], catInfo.color[3])
+        if catKey == "Swap" then GameTooltip:AddLine("Click: show or hide its items.", 0.85, 0.85, 0.85) end
+        GameTooltip:AddLine("Right-click: move this section up or down.", 0.85, 0.85, 0.85)
+        GameTooltip:Show()
+    end)
+    f:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return f
+end
+
+-- Move a section in your saved order. Up / down jump over sections that are empty right now (they aren't drawn), so
+-- each click visibly moves it.
+function VB:MoveSection(catKey, how)
+    local order = VoidBagsDB and VoidBagsDB.config and VoidBagsDB.config.sortOrder
+    if type(order) ~= "table" then return end
+    if how == "reset" then
+        local fresh = {}
+        for _, c in ipairs(VB.defaults.sortOrder) do fresh[#fresh + 1] = c end
+        for _, c in ipairs(order) do
+            local known = false
+            for _, d in ipairs(fresh) do if d == c then known = true end end
+            if not known then fresh[#fresh + 1] = c end
+        end
+        VoidBagsDB.config.sortOrder = fresh
+    else
+        local i
+        for k, c in ipairs(order) do if c == catKey then i = k end end
+        if not i then return end
+        local function shown(c) local sf = sectionFrames[c]; return sf and sf:IsShown() end
+        table.remove(order, i)
+        if how == "top" then
+            table.insert(order, 1, catKey)
+        elseif how == "up" then
+            local j = i - 1
+            while j > 1 and not shown(order[j]) do j = j - 1 end
+            table.insert(order, math.max(1, j), catKey)
+        elseif how == "down" then
+            local j = i
+            while j < #order and not shown(order[j]) do j = j + 1 end
+            table.insert(order, math.min(#order + 1, j + 1), catKey)
+        end
+    end
+    layoutDirty = true
+    VB._LayoutBags()
+end
+
+function VB:SectionMenu(owner, catKey)
+    if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+    if GameTooltip:IsOwned(owner) then GameTooltip:Hide() end   -- the header's hover tip sat over the menu (retail 11-25)
+    local label = VB.CATEGORIES[catKey] and VB.CATEGORIES[catKey].label or catKey
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle(label)
+        root:CreateButton("Move up", function() VB:MoveSection(catKey, "up") end)
+        root:CreateButton("Move down", function() VB:MoveSection(catKey, "down") end)
+        root:CreateButton("Move to top", function() VB:MoveSection(catKey, "top") end)
+        root:CreateButton("All sections: default order", function() VB:MoveSection(catKey, "reset") end)
+    end)
 end
 
 ----------------------------------------------------------------------
@@ -2229,6 +2328,14 @@ function VB:ToggleSettings(parent)
             rowY = rowY - 18
         end
 
+        -- Blizzard's own bags instead (2026-11-25): kept across sessions, under the legend
+        f._cbBlizz = MakeToggle(rowY - 6, "useBlizzardBags", "Use Blizzard's bags instead",
+            "Turn VoidBags' bag window off and use the game's own bags (kept after a reload). The bank, Swap Gear, " ..
+            "gold per hour and the item markers in tooltips keep working. This window goes away with VoidBags' bags: " ..
+            "turn it back off in the Void hub's quick box (left-click the hub button), then /reload.")
+        f._cbBlizz:SetScript("OnClick", function(self) VB:UseBlizzardBags(self:GetChecked()) end)
+        f:SetHeight(f:GetHeight() + 30)
+
         -- Manual action buttons
         local repairBtn = CreateFrame("Button", nil, f, "BackdropTemplate")
         repairBtn:SetSize(80, 22)
@@ -2399,6 +2506,32 @@ end
 -- itself, immediately re-Hide. Survives any internal Blizzard code path
 -- (auto-loot, bank tab open, merchant suppression races, etc.) because
 -- it's frame-level, not event-driven. OnShow is non-secure so safe to hook.
+-- Blizzard's own bags instead of VoidBags (Settings > "Use Blizzard's bags", or /vb default), kept across sessions
+-- (2026-11-25, a CurseForge comment: "not being able to ... look at my bags normally"; it used to last one session).
+-- On: Blizzard's bags show again at once. Off: VoidBags hides them again after a /reload.
+function VB:UseBlizzardBags(on)
+    VB._useBlizzardBags = on and true or nil
+    if VoidBagsDB and VoidBagsDB.config then VoidBagsDB.config.useBlizzardBags = on and true or false end
+    if on then
+        if VB.CloseBags then VB:CloseBags() end   -- combat-safe path (the bag frame has secure children)
+        for i = 1, 30 do
+            local f = _G["ContainerFrame" .. i]
+            if f then f:SetAlpha(1); f:EnableMouse(true); f:ClearAllPoints() end
+        end
+        if ContainerFrameCombinedBags then
+            ContainerFrameCombinedBags:SetAlpha(1)
+            ContainerFrameCombinedBags:EnableMouse(true)
+            ContainerFrameCombinedBags:ClearAllPoints()
+            ContainerFrameCombinedBags:SetPoint("BOTTOMRIGHT", -100, 100)
+        end
+        print(VB.C_CYAN .. "[VoidBags]|r Using Blizzard's bags (kept after a reload). Press B to open. " ..
+            "Turn it off in the Void hub's quick box (left-click the hub button) or " .. VB.C_DIM .. "/vb default|r.")
+        ToggleBackpack()
+    else
+        print(VB.C_CYAN .. "[VoidBags]|r Back to VoidBags. Reload to finish: |cffffd700/reload|r")
+    end
+end
+
 local function _hideOnShow(self)
     if VB._useBlizzardBags then return end   -- /vb default
     self:SetAlpha(0)
@@ -2622,12 +2755,17 @@ ef:SetScript("OnEvent", function(_, event, arg1)
         -- = "Cannot change equipment status while in combat".
         local function HideBlizzBag(frame)
             if not frame then return end
-            frame:SetAlpha(0)
-            frame:EnableMouse(false)
-            if not InCombatLockdown() then
-                frame:ClearAllPoints()
-                frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 0)
-                frame:Hide()
+            -- "Use Blizzard's bags" on: leave them as they are (this first hide ran regardless and left them at
+            -- alpha 0 off-screen after a reload; found on the laptop 2026-11-25). The Show hook below still goes in,
+            -- and it checks the setting too.
+            if not VB._useBlizzardBags then
+                frame:SetAlpha(0)
+                frame:EnableMouse(false)
+                if not InCombatLockdown() then
+                    frame:ClearAllPoints()
+                    frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 0)
+                    frame:Hide()
+                end
             end
             if not frame._voidHooked then
                 hooksecurefunc(frame, "Show", function(self)
@@ -2852,39 +2990,10 @@ SlashCmdList["VOIDBAGS"] = function(msg)
     end
 
     if msg == "default" or msg == "blizz" then
-        -- Temporary swap to Blizzard's default bag UI for this session.
-        -- Use this when VoidBags' click handling can't apply enchants/gems
-        -- due to taint. /vb default again toggles back to VoidBags.
-        VB._useBlizzardBags = not VB._useBlizzardBags
-        if VB._useBlizzardBags then
-            -- Hide VoidBags (combat-safe path; bagFrame has secure children)
-            if bagFrame then VB:CloseBags() end
-            -- Restore Blizzard ContainerFrames to normal positions
-            for i = 1, 30 do
-                local f = _G["ContainerFrame" .. i]
-                if f then
-                    f:SetAlpha(1)
-                    f:EnableMouse(true)
-                    f:ClearAllPoints()
-                end
-            end
-            if ContainerFrameCombinedBags then
-                ContainerFrameCombinedBags:SetAlpha(1)
-                ContainerFrameCombinedBags:EnableMouse(true)
-                ContainerFrameCombinedBags:ClearAllPoints()
-                ContainerFrameCombinedBags:SetPoint("BOTTOMRIGHT", -100, 100)
-            end
-            print(VB.C_CYAN .. "[VoidBags]|r Switched to Blizzard's default bag UI. " ..
-                "Press B to open. " .. VB.C_DIM .. "/vb default|r toggles back.")
-            -- Open default bags
-            ToggleBackpack()
-        else
-            print(VB.C_CYAN .. "[VoidBags]|r Switched back to VoidBags. " ..
-                "Reload required to fully restore Blizzard frame suppression: |cffffd700/reload|r")
-        end
+        -- Swap to Blizzard's default bag UI (kept now: the same as Settings > "Use Blizzard's bags").
+        VB:UseBlizzardBags(not VB._useBlizzardBags)
         return
     end
-
     if msg == "hideghost" or msg == "killbags" then
         -- Force-hide every Blizzard ContainerFrame right now (no reload needed).
         local n = 0
@@ -3156,4 +3265,12 @@ table.insert(VoidHubToggles, {
     tip = "Repairs your gear when you open a vendor who can.",
     get = function() return VB:GetConfig("autoRepair") end,
     set = function(on) VoidBagsDB.config.autoRepair = on and true or false end,
+})
+-- The way back without typing: with Blizzard's bags on, VoidBags' bag window (and the settings gear on it) is gone
+-- (retail 11-25: the settings panel vanished with the window).
+table.insert(VoidHubToggles, {
+    id = "VoidBags.blizzbags", group = "Bags", label = "Use Blizzard's bags", order = 3,
+    tip = "Show the game's own bags instead of VoidBags' window. Turning it off needs a /reload.",
+    get = function() return VB._useBlizzardBags and true or false end,
+    set = function(on) VB:UseBlizzardBags(on) end,
 })
