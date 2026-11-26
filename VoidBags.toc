@@ -2,7 +2,7 @@
 ## Title: |cff00c7ffVoidBags|r
 ## Notes: Smart bag organizer with auto-categorization, item markers, and cross-character tracking Discord: https://discord.gg/7ZHmx7zMDh
 ## Author: Vede
-## Version: 1.8.0
+## Version: 1.8.1
 ## SavedVariables: VoidBagsDB
 ## SavedVariablesPerCharacter: VoidBagsCharDB, VoidHubCharDB
 ## OptionalDeps: VoidUI, VoidGearScore, VoidGear
@@ -27,3 +27,4 @@ Bank.lua
 GuildBank.lua
 Minimap.lua
 VoidHubBundle.lua
+Libs\VoidHub\VoidHub.xml

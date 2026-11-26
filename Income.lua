@@ -820,3 +820,7 @@ if CreateFrame then
         I:OnEvent(event, ...)
     end)
 end
+
+-- Read-only hooks for the all-in-one VoidHub window (2026-11-24): the hub's "Gold per hour" page shows this
+-- session, the best zones and recent sessions from the same store and labels (the chat lists, as a page).
+I.Hub = { Store = store, MapName = mapName, SourceLabel = SOURCE_LABEL, Minutes = minutes, How = HOW }

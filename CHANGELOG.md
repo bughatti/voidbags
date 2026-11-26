@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.1] — 2026-11-25
+
+- **VoidHub window (WoW Forever):** right-click the VoidHub minimap button (or type /vhub) for every Void addon in one window: quests, layers, gear, gold, professions, combat, dungeons and more, each drawn from its own addon, with a Start page for what to do right now. Addons you don't have show a screenshot and how to get them. Shift + right-click opens Copy settings from another character. It comes inside every Void addon: nothing extra to install.
+
 ## [1.8.0] — 2026-11-25
 
 From your comments on CurseForge, thank you:
