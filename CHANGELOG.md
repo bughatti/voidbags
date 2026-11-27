@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.2] — 2026-11-27
+
+- **Fixed: the "Equipped" comparison tooltips no longer pile up on each other.** Hovering gear in your bags, your bank or the guild bank, with the window near the edge of the screen, put both comparison boxes on the same spot, unreadable. The item tooltip now opens beside the window, on the side with room, and the comparisons stack neatly under it.
+
 ## [1.8.1] — 2026-11-25
 
 - **VoidHub window (WoW Forever):** right-click the VoidHub minimap button (or type /vhub) for every Void addon in one window: quests, layers, gear, gold, professions, combat, dungeons and more, each drawn from its own addon, with a Start page for what to do right now. Addons you don't have show a screenshot and how to get them. Shift + right-click opens Copy settings from another character. It comes inside every Void addon: nothing extra to install.

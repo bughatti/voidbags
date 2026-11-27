@@ -283,7 +283,7 @@ local function CreateBankButton(parent, bag, slot)
         C_Container.PickupContainerItem(self.bag, self.slot)
     end)
     btn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        VoidTip.Place(self)   -- (beside the bank window, comparisons under it)
         GameTooltip:SetBagItem(self.bag, self.slot)
         GameTooltip:Show()
     end)
@@ -1924,7 +1924,7 @@ do
                 r.border:SetColorTexture(0, 0, 0, 0)
                 r:SetScript("OnEnter", function(self)
                     if not self.d then return end
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    VoidTip.Place(self)
                     if self.d.link then GameTooltip:SetHyperlink(self.d.link) else GameTooltip:SetItemByID(self.d.id) end
                     GameTooltip:Show()
                 end)

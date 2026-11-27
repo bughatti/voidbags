@@ -183,7 +183,7 @@ local function CreateSlotButton(parent, slotNum)
 
     btn:SetScript("OnEnter", function(self)
         if not self.tab or not self.link then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        VoidTip.Place(self)
         if viewingCached then
             pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)  -- snapshot: no live slot to read
         else

@@ -594,7 +594,8 @@ local function CreateItemButton(parent, bag, slot)
 
     -- Tooltip
     btn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        -- beside the bag window, comparisons stacked under it (VoidTip.lua: at the screen's edge they piled up)
+        VoidTip.Place(self)
         GameTooltip:SetBagItem(self.bag, self.slot)
         if VB.swapPick then
             GameTooltip:AddLine(self.catKey == "Swap" and "Click: take it out of Swap Gear" or "Click: put it in Swap Gear",
